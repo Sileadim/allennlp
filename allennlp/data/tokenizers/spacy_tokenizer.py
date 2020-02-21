@@ -53,6 +53,7 @@ class SpacyTokenizer(Tokenizer):
         pos_tags: bool = False,
         parse: bool = False,
         ner: bool = False,
+        idx: bool = False,
         keep_spacy_tokens: bool = False,
         split_on_spaces: bool = False,
         start_tokens: Optional[List[str]] = None,

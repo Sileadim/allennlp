@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
+import numpy as np
 
 
 @dataclass
@@ -48,6 +49,7 @@ class Token:
     ent_type_: Optional[str] = None
     text_id: Optional[int] = None
     type_id: Optional[int] = None
+    position: Optional[np.array] = None
 
     def __str__(self):
         return self.text
