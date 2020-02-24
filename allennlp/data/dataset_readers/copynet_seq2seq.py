@@ -225,11 +225,11 @@ def map_tokens_to_coordinates(source_string, coordinate_string, tokens):
         char_to_pos_map.append(None)
     assert len(char_to_pos_map) == len(source_string) + 1
     for token in tokens:
-        coordinate = char_to_pos_map[token.idx]
-        if coordinate is None:
+        coordinates = char_to_pos_map[token.idx]
+        if coordinates is None:
             raise Exception(
                 "No token idx should ever map to None coordinate. Either implementation or input is wrong.")
-        token.coordinate = coordinate
+        token.coordinates = coordinates
 
 
 @DatasetReader.register("copynet_coordinates")
@@ -256,8 +256,8 @@ class CopyNetDatasetReaderWithcoordinates(CopyNetDatasetReader):
 
         tokenized_source = self._source_tokenizer.tokenize(source_string)
         map_tokens_to_coordinates(source_string, coordinate_string, tokenized_source)
-        tokenized_source.insert(0, Token(START_SYMBOL, START_POSITION))
-        tokenized_source.append(Token(END_SYMBOL, END_POSITION))
+        tokenized_source.insert(0, Token(START_SYMBOL, coordinates=START_POSITION))
+        tokenized_source.append(Token(END_SYMBOL, coordinates=END_POSITION))
         source_field = TextField(tokenized_source, self._source_token_indexers)
 
         # For each token in the source sentence, we keep track of the matching token

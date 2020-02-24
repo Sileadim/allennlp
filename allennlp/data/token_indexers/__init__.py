@@ -8,6 +8,8 @@ from allennlp.data.token_indexers.pos_tag_indexer import PosTagIndexer
 from allennlp.data.token_indexers.single_id_token_indexer import SingleIdTokenIndexer
 from allennlp.data.token_indexers.token_characters_indexer import TokenCharactersIndexer
 from allennlp.data.token_indexers.token_indexer import TokenIndexer
+from allennlp.data.token_indexers.coordinate_token_indexer import CoordinateTokenIndexer
+
 from allennlp.data.token_indexers.elmo_indexer import ELMoTokenCharactersIndexer
 from allennlp.data.token_indexers.spacy_indexer import SpacyTokenIndexer
 from allennlp.data.token_indexers.pretrained_transformer_indexer import PretrainedTransformerIndexer
