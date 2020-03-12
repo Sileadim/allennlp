@@ -142,7 +142,10 @@ class CopyNetDatasetReader(DatasetReader):
     def _tokens_to_ids(tokens: List[Token]) -> List[int]:
         ids: Dict[str, int] = {}
         out: List[int] = []
+        # TODO: Change this to len(ids) + 1; likely padding token gets the same id as the first one which might lead to
+        # issues
         for token in tokens:
+            # initial implementation is this out.append(ids.setdefault(token.text.lower(), len(ids)))
             out.append(ids.setdefault(token.text.lower(), len(ids)))
         return out
 
