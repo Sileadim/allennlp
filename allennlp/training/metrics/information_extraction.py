@@ -189,16 +189,6 @@ def filter_double_recurring(d, recurring_list):
             d[recurring] = new_list
 
 
-def convert_gt_to_json(gt_list):
-    gt_json_string = " ".join(gt_list).replace("@@", "")
-    # in the weird case when gt is corrupt, we return an empty dict
-    print(gt_json_string)
-    try:
-        return json.loads(gt_json_string)
-    except:
-        return {}
-
-
 @Metric.register("information_extraction")
 class InformationExtraction(Metric):
     """
@@ -213,17 +203,15 @@ class InformationExtraction(Metric):
             self,
             predictions,
             gt,
-            mask: Optional[torch.Tensor] = None,
     ):
         """
         # Parameters
 
-        predictions : `torch.Tensor`, required.
-            A tensor of predictions of shape (batch_size, k, sequence_length).
-        gold_labels : `torch.Tensor`, required.
-            A tensor of integer class label of shape (batch_size, sequence_length).
-        mask : `torch.Tensor`, optional (default = None).
-            A masking tensor the same size as `gold_labels`.
+        predictions : `List[List[str]`, required.
+            Gt tokens
+        gt : `List[List[str]`, required.
+            Predicted tokens
+
         """
 
         self.gt_jsons += [parse_json(gt_list) for gt_list in gt]
