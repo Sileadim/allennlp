@@ -102,9 +102,11 @@ class CopyNetSeq2Seq(Model):
         )
         self._copy_index = self.vocab.add_token_to_namespace(copy_token, self._target_namespace)
 
-        self._tensor_based_metric = tensor_based_metric or BLEU(
-            exclude_indices={self._pad_index, self._end_index, self._start_index}
-        )
+        self._tensor_based_metric = tensor_based_metric \
+
+        # or BLEU(
+        #    exclude_indices={self._pad_index, self._end_index, self._start_index}
+        #)
         self._token_based_metric = token_based_metric
 
         self._target_vocab_size = self.vocab.get_vocab_size(self._target_namespace)
