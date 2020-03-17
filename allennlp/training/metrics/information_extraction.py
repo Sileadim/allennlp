@@ -47,9 +47,12 @@ def format_text_field(string):
     # quote " chars
     string = string.replace('"', '\\"')
 
-    for punct in [";", ",", ".", "!", "-", "(", ")", "[", "]"]:
+    for punct in [";", ",", ".", "!", "-"]:
         string = string.replace(" " + punct, punct)
-
+    for bracket in ["(", "["]:
+        string = string.replace(bracket + " ", bracket)
+    for bracket in ["]", ")"]:
+        string = string.replace(" " + bracket, bracket)
     return '"' + string + '"'
 
 
