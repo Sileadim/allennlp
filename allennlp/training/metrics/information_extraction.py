@@ -234,19 +234,22 @@ class InformationExtraction(Metric):
 
         tmp_pred = []
         tmp_gt = []
+        if any(self.pred_jsons):
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                for i, (pred, gt) in enumerate(zip(self.pred_jsons, self.gt_jsons)):
+                    subdir = os.path.join(tmpdirname, str(i))
+                    os.makedirs(subdir)
+                    gt_path = os.path.join(subdir, "gt.json")
+                    pred_path = os.path.join(subdir, "pred.json")
+                    json.dump(pred, open(pred_path, "w"), ensure_ascii=False)
+                    json.dump(gt, open(gt_path, "w"), ensure_ascii=False)
+                    tmp_pred.append(pred_path)
+                    tmp_gt.append(gt_path)
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            for i, (pred, gt) in enumerate(zip(self.pred_jsons, self.gt_jsons)):
-                subdir = os.path.join(tmpdirname, str(i))
-                os.makedirs(subdir)
-                gt_path = os.path.join(subdir, "gt.json")
-                pred_path = os.path.join(subdir, "pred.json")
-                json.dump(pred, open(pred_path, "w"), ensure_ascii=False)
-                json.dump(gt, open(gt_path, "w"), ensure_ascii=False)
-                tmp_pred.append(pred_path)
-                tmp_gt.append(gt_path)
-
-            out = evaluator.evaluate(tmp_gt, tmp_pred)
+                out = evaluator.evaluate(tmp_gt, tmp_pred)
+        else:
+            return {"f1": 0, "recall": 0,
+                "precision": 0}
 
         if reset:
             self.reset()
