@@ -5,7 +5,6 @@ import torch
 
 from allennlp.common.checks import ConfigurationError
 
-
 StateType = Dict[str, torch.Tensor]
 StepFunctionType = Callable[[torch.Tensor, StateType], Tuple[torch.Tensor, StateType]]
 
@@ -32,19 +31,62 @@ class BeamSearch:
     """
 
     def __init__(
-        self,
-        end_index: int,
-        max_steps: int = 50,
-        beam_size: int = 10,
-        per_node_beam_size: int = None,
+            self,
+            end_index: int,
+            max_steps: int = 50,
+            beam_size: int = 10,
+            per_node_beam_size: int = None,
+            restrict_to_single_copy: bool = False
     ) -> None:
         self._end_index = end_index
         self.max_steps = max_steps
         self.beam_size = beam_size
         self.per_node_beam_size = per_node_beam_size or beam_size
+        self.restrict_to_single_copy = restrict_to_single_copy
+
+    def update_copy_mask(self, predicted_token_indices: torch.Tensor,
+                         state: StateType):
+
+        """We want to update the copy mask by zeroing out indices of tokens that we're already copied.
+        To do that we need to know the predicted indices of the tokens and from which beam those indices came from.
+        """
+
+        _, trimmed_source_length = state["source_to_target"].size()
+
+        batch_x_beam = state["log_probs"].shape[0]
+        vocab_size = state["log_probs"].shape[1] - trimmed_source_length
+
+        # we are going to construct a tensor which indicates all tokens, vocab and source, that are the same by giving
+        # them the same id
+        # batch_x_beam times all the indices from 0 to vocab_size -1
+        vocab_token_indices = torch.arange(vocab_size, device=state["log_probs"].device).repeat(
+            (batch_x_beam)).view(
+            (batch_x_beam, vocab_size))
+
+        # state["source_to_target"] contains all the copy token which match already target vocabs but not if 2 tokens
+        # are the same if they are not in the vocab. Those tokens and in source_token_ids and we add vocab size unto them
+
+        padded_source_token_indices = torch.where(state["source_to_target"] > 1, state["source_to_target"],
+                                                  state["source_token_ids"].long() + vocab_size)
+
+        vocab_and_source_token_indices = torch.cat((vocab_token_indices, padded_source_token_indices), dim=-1)
+        # get new indices of the selected tokens
+        argmax_indices = torch.gather(vocab_and_source_token_indices, 1,
+                                      predicted_token_indices.reshape((batch_x_beam, 1)))
+
+        # get a mask of all the tokens which are the same as the selected one
+        same_idx_as_selected_mask = vocab_and_source_token_indices == argmax_indices
+
+        # no select the token which contributed the most
+        argmax_of_highest_contribution = torch.argmax(state["log_probs"] + (same_idx_as_selected_mask + 1e-45).log(),
+                                                      dim=1, keepdim=True)
+
+        new_copy_mask = torch.zeros_like(vocab_and_source_token_indices).scatter(1, argmax_of_highest_contribution, 1)
+
+        state["copy_mask"] *= new_copy_mask[:, vocab_size:]
 
     def search(
-        self, start_predictions: torch.Tensor, start_state: StateType, step: StepFunctionType
+            self, start_predictions: torch.Tensor, start_state: StateType, step: StepFunctionType
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Given a starting state and a step function, apply beam search to find the
@@ -153,9 +195,16 @@ class BeamSearch:
             # shape: (batch_size * beam_size, *)
             state[key] = (
                 state_tensor.unsqueeze(1)
-                .expand(batch_size, self.beam_size, *last_dims)
-                .reshape(batch_size * self.beam_size, *last_dims)
+                    .expand(batch_size, self.beam_size, *last_dims)
+                    .reshape(batch_size * self.beam_size, *last_dims)
             )
+
+        if self.restrict_to_single_copy:
+            # we need to create a dummy backpointer so the function works with the later steps
+            # backpointer = torch.arange(self.beam_size, device=start_class_log_probabilities.device).repeat(1,
+            #                                                                                               self.beam_size).view(
+            #    (self.beam_size, self.beam_size))
+            self.update_copy_mask(start_predicted_classes, state)
 
         for timestep in range(self.max_steps - 1):
             # shape: (batch_size * beam_size,)
@@ -198,8 +247,8 @@ class BeamSearch:
             # shape: (batch_size * beam_size, per_node_beam_size)
             expanded_last_log_probabilities = (
                 last_log_probabilities.unsqueeze(2)
-                .expand(batch_size, self.beam_size, self.per_node_beam_size)
-                .reshape(batch_size * self.beam_size, self.per_node_beam_size)
+                    .expand(batch_size, self.beam_size, self.per_node_beam_size)
+                    .reshape(batch_size * self.beam_size, self.per_node_beam_size)
             )
 
             # shape: (batch_size * beam_size, per_node_beam_size)
@@ -253,10 +302,13 @@ class BeamSearch:
                 # shape: (batch_size * beam_size, *)
                 state[key] = (
                     state_tensor.reshape(batch_size, self.beam_size, *last_dims)
-                    .gather(1, expanded_backpointer)
-                    .reshape(batch_size * self.beam_size, *last_dims)
+                        .gather(1, expanded_backpointer)
+                        .reshape(batch_size * self.beam_size, *last_dims)
                 )
+            if self.restrict_to_single_copy:
+                self.update_copy_mask(restricted_predicted_classes, state)
 
+            print("end of step")
         if not torch.isfinite(last_log_probabilities).all():
             warnings.warn(
                 "Infinite log probabilities encountered. Some final sequences may not make sense. "

@@ -150,7 +150,7 @@ class CopyNetSeq2Seq(Model):
 
         # At prediction time, we'll use a beam search to find the best target sequence.
         self._beam_search = BeamSearch(
-            self._end_index, max_steps=max_decoding_steps, beam_size=beam_size
+            self._end_index, max_steps=max_decoding_steps, beam_size=beam_size, restrict_to_single_copy=self.restrict_to_single_copy
         )
 
         initializer(self)
@@ -766,6 +766,14 @@ class CopyNetSeq2Seq(Model):
         # shape: (group_size, target_vocab_size + trimmed_source_length)
         modified_log_probs = torch.cat(modified_log_probs_list, dim=-1)
 
+        #if self.restrict_to_single_copy:
+        #    predicted_token_idx = torch.topk(modified_log_probs, self.be)
+            # if predicted token was in the target vocab we need to find all tokens in the source with the same
+            # and look for the one which is the highest
+            #is_in_target_vocab = predicted_token_idx < generation_log_probs.shape[1]
+            #source_token_equal_to_predicted = predicted_token_idx == state["source_to_target"]
+            #generation_mask = torch.zeros_like(generation_log_probs)
+
         return modified_log_probs
 
     def take_search_step(
@@ -857,8 +865,9 @@ class CopyNetSeq2Seq(Model):
             [self._target_vocab_size, trimmed_source_length], dim=-1
         )
         # Update copy_probs needed for getting the `selective_weights` at the next timestep.
-        state["copy_log_probs"] = copy_log_probs
-        #todo: add generation log probs for beam search masking?
+        state["log_probs"] = log_probs
+
+        # todo: add generation log probs for beam search masking?
 
         # We now have normalized generation and copy scores, but to produce the final
         # score for each token in the extended vocab, we have to go through and add
@@ -866,7 +875,7 @@ class CopyNetSeq2Seq(Model):
         # the copy scores of duplicate source tokens.
         # shape: (group_size, target_vocab_size + trimmed_source_length)
         final_log_probs = self._gather_final_log_probs(generation_log_probs, copy_log_probs, state)
-
+        state["modified_log_probs"] = final_log_probs
         return final_log_probs, state
 
     def _get_predicted_tokens(
