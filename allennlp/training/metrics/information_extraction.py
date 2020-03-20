@@ -57,7 +57,6 @@ def format_text_field(string):
 
 
 def parse_json(pred, recurring_list=[]):
-    print(pred)
     # TODO: check where $ comes from, looks like line termination symbol
     pred[-1].replace("$", "")
     pred_string = " ".join(pred)
