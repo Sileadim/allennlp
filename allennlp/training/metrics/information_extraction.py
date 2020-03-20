@@ -247,11 +247,17 @@ class InformationExtraction(Metric):
                     tmp_gt.append(gt_path)
 
                 out = evaluator.evaluate(tmp_gt, tmp_pred)
+
+            if reset:
+                self.reset()
+
+            return {"f1": out["overall"]["f1"][0], "recall": out["overall"]["recall"][0],
+                    "precision": out["overall"]["precision"][0]}
+
+
         else:
+            if reset:
+                self.reset()
+
             return {"f1": 0, "recall": 0,
                 "precision": 0}
-
-        if reset:
-            self.reset()
-        return {"f1": out["overall"]["f1"][0], "recall": out["overall"]["recall"][0],
-                "precision": out["overall"]["precision"][0]}
