@@ -29,3 +29,4 @@ from allennlp.training.metrics.span_based_f1_measure import SpanBasedF1Measure
 from allennlp.training.metrics.srl_eval_scorer import SrlEvalScorer, DEFAULT_SRL_EVAL_PATH
 from allennlp.training.metrics.unigram_recall import UnigramRecall
 from allennlp.training.metrics.auc import Auc
+from allennlp.training.metrics.information_extraction import InformationExtraction

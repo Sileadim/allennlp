@@ -308,7 +308,6 @@ class BeamSearch:
             if self.restrict_to_single_copy:
                 self.update_copy_mask(restricted_predicted_classes, state)
 
-            print("end of step")
         if not torch.isfinite(last_log_probabilities).all():
             warnings.warn(
                 "Infinite log probabilities encountered. Some final sequences may not make sense. "

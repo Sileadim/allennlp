@@ -79,8 +79,8 @@ needs_pytest = {"pytest", "test", "ptr"}.intersection(sys.argv)
 pytest_runner = ["pytest-runner"] if needs_pytest else []
 
 setup_requirements = [
-    # add other setup requirements as necessary
-] + pytest_runner
+                         # add other setup requirements as necessary
+                     ] + pytest_runner
 
 setup(
     name="allennlp",
@@ -123,6 +123,7 @@ setup(
         "jsonpickle",
         "semantic_version",
         "dataclasses;python_version<'3.7'",
+        "mlevaluation>=2.24.2"
     ],
     entry_points={"console_scripts": ["allennlp=allennlp.run:run"]},
     setup_requires=setup_requirements,
