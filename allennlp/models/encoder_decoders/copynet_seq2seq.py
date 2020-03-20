@@ -103,9 +103,7 @@ class CopyNetSeq2Seq(Model):
         self._copy_index = self.vocab.add_token_to_namespace(copy_token, self._target_namespace)
         self.restrict_to_single_copy = restrict_to_single_copy
 
-
         self._tensor_based_metric = tensor_based_metric
-
 
         self._token_based_metric = token_based_metric
 
@@ -152,7 +150,8 @@ class CopyNetSeq2Seq(Model):
 
         # At prediction time, we'll use a beam search to find the best target sequence.
         self._beam_search = BeamSearch(
-            self._end_index, max_steps=max_decoding_steps, beam_size=beam_size, restrict_to_single_copy=self.restrict_to_single_copy
+            self._end_index, max_steps=max_decoding_steps, beam_size=beam_size,
+            restrict_to_single_copy=self.restrict_to_single_copy
         )
 
         initializer(self)
@@ -435,7 +434,6 @@ class CopyNetSeq2Seq(Model):
         # shape: (batch_size, 1 + trimmed_source_length)
         combined_gen_and_copy = torch.cat((generation_log_probs, copy_log_probs), dim=-1)
         index_of_highest_score = torch.argmax(combined_gen_and_copy, 1).unsqueeze(1)
-        print(index_of_highest_score)
         if self.restrict_to_single_copy:
             # find the token with the highest score at this step, index 0 indicates that it was generated
             # shape: (batch_size, 1)
@@ -544,7 +542,6 @@ class CopyNetSeq2Seq(Model):
                 copy_mask,
             )
             step_log_likelihoods.append(step_log_likelihood.unsqueeze(1))
-        print("*******************************************")
         # Gather step log-likelihoods.
         # shape: (batch_size, num_decoding_steps = target_sequence_length - 1)
         log_likelihoods = torch.cat(step_log_likelihoods, 1)
@@ -768,13 +765,13 @@ class CopyNetSeq2Seq(Model):
         # shape: (group_size, target_vocab_size + trimmed_source_length)
         modified_log_probs = torch.cat(modified_log_probs_list, dim=-1)
 
-        #if self.restrict_to_single_copy:
+        # if self.restrict_to_single_copy:
         #    predicted_token_idx = torch.topk(modified_log_probs, self.be)
-            # if predicted token was in the target vocab we need to find all tokens in the source with the same
-            # and look for the one which is the highest
-            #is_in_target_vocab = predicted_token_idx < generation_log_probs.shape[1]
-            #source_token_equal_to_predicted = predicted_token_idx == state["source_to_target"]
-            #generation_mask = torch.zeros_like(generation_log_probs)
+        # if predicted token was in the target vocab we need to find all tokens in the source with the same
+        # and look for the one which is the highest
+        # is_in_target_vocab = predicted_token_idx < generation_log_probs.shape[1]
+        # source_token_equal_to_predicted = predicted_token_idx == state["source_to_target"]
+        # generation_mask = torch.zeros_like(generation_log_probs)
 
         return modified_log_probs
 

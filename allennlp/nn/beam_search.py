@@ -81,7 +81,7 @@ class BeamSearch:
         argmax_of_highest_contribution = torch.argmax(state["log_probs"] + (same_idx_as_selected_mask + 1e-45).log(),
                                                       dim=1, keepdim=True)
 
-        new_copy_mask = torch.zeros_like(vocab_and_source_token_indices).scatter(1, argmax_of_highest_contribution, 1)
+        new_copy_mask = torch.ones_like(vocab_and_source_token_indices).scatter(1, argmax_of_highest_contribution, 0)
 
         state["copy_mask"] *= new_copy_mask[:, vocab_size:]
 
