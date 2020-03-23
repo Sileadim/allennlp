@@ -234,6 +234,7 @@ class InformationExtraction(Metric):
 
         tmp_pred = []
         tmp_gt = []
+        print(self.pred_jsons)
         if any(self.pred_jsons):
             with tempfile.TemporaryDirectory() as tmpdirname:
                 for i, (pred, gt) in enumerate(zip(self.pred_jsons, self.gt_jsons)):
