@@ -76,11 +76,17 @@ def parse_json(pred, recurring_list=[]):
         else:
             return span_text_type[i + 1]["type"] == type
 
-    def is_next_text(t, text):
+    def is_next_text(i, text):
         if (i + 1) == len(span_text_type):
             return False
         else:
             return span_text_type[i + 1]["text"] == text
+
+    def is_next_open(i):
+        if (i + 1) == len(span_text_type):
+            return False
+        else:
+            return any([x in span_text_type[i + 1]["text"] for x in ["{", "["]])
 
     cleaned_string_lst = []
 
@@ -151,8 +157,10 @@ def parse_json(pred, recurring_list=[]):
             cleaned_string_lst.append('"' + match["text"] + '":')
             # if it's not a dict or list, add the next string between matches of tokens
             if match["text"] not in recurring_list:
-                cleaned_string_lst.append(format_text_field(pred_string[match["end"]:next_start(i)])
-                                          )
+
+                if not is_next_open(i):
+                    cleaned_string_lst.append(format_text_field(pred_string[match["end"]:next_start(i)])
+                                              )
                 # if next is a key, we need to add a comma
                 if is_next_type(i, "key"):
                     # add text between tokens
@@ -172,7 +180,7 @@ def parse_json(pred, recurring_list=[]):
     cleaned_string = " ".join(cleaned_string_lst)
     try:
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
-    except:
+    except Exception as e:
         d = {}
     return d
 
@@ -234,7 +242,6 @@ class InformationExtraction(Metric):
 
         tmp_pred = []
         tmp_gt = []
-        print(self.pred_jsons)
         if any(self.pred_jsons):
             with tempfile.TemporaryDirectory() as tmpdirname:
                 for i, (pred, gt) in enumerate(zip(self.pred_jsons, self.gt_jsons)):
@@ -261,4 +268,4 @@ class InformationExtraction(Metric):
                 self.reset()
 
             return {"f1": 0, "recall": 0,
-                "precision": 0}
+                    "precision": 0}
