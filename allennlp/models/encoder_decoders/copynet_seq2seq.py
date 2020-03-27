@@ -104,7 +104,7 @@ class CopyNetSeq2Seq(Model):
         self.restrict_to_single_copy = restrict_to_single_copy
         self._tensor_based_metric = tensor_based_metric \
  \
-        # or BLEU(
+            # or BLEU(
         #    exclude_indices={self._pad_index, self._end_index, self._start_index}
         # )
         self._token_based_metric = token_based_metric
@@ -678,6 +678,47 @@ class CopyNetSeq2Seq(Model):
         """
         _, trimmed_source_length = state["source_to_target"].size()
         source_token_ids = state["source_token_ids"]
+
+        batch_x_beam = state["log_probs"].shape[0]
+        vocab_size = state["log_probs"].shape[1] - trimmed_source_length
+        # +1 for the padding index in the source sequence indices. It's easier this way to generate the padded_source token
+        # indices
+        max_index = vocab_size + trimmed_source_length + 1
+
+        # we are going to construct a tensor which indicates all tokens, vocab and source, that are the same by giving
+        # them the same id
+        # batch_x_beam times all the indices from 0 to vocab_size -1
+        vocab_token_indices = torch.arange(vocab_size, device=state["log_probs"].device).expand(batch_x_beam,
+                                                                                                vocab_size)
+
+        # state["source_to_target"] contains all the copy token which match already target vocabs but not if 2 tokens
+        # are the same if they are not in the vocab. Those tokens and in source_token_ids and we add vocab size unto them
+        padded_source_token_indices = torch.where(state["source_to_target"] > 1, state["source_to_target"],
+                                                  state["source_token_ids"].long() + vocab_size)
+
+        # we combine vacab and padded source token_indices and expand the last dimension to max_idx so we can later
+        # generate masks that indicate for each index the tokens that are to be added. The second dimension is now
+        # the the max_index dimension
+        # shape: group_size,  max_index,trimmmed_source_length,
+        vocab_and_source_token_indices = torch.cat((vocab_token_indices, padded_source_token_indices),
+                                                   dim=-1).unsqueeze(1).expand(
+            batch_x_beam, max_index, max_index - 1)
+
+        # generate 0 to max_index
+        all_indices = torch.arange(max_index, device=state["log_probs"].device)
+
+        # now we generate max_idx mask for each example in the group. The nth mask indicates all tokens have index n
+        vocab_and_source_token_indices_masks = vocab_and_source_token_indices == all_indices.unsqueeze(0).unsqueeze(-1)
+
+        # zero out pad tokens and if chosen already copied tokens
+        # masked_copy_log_probs = copy_log_probs + (state["copy_mask"] + 1e-45).log()
+        combined_log_probs = torch.cat((generation_log_probs, copy_log_probs), dim=-1)
+
+        expanded_combined_log_probs = combined_log_probs.unsqueeze(1).expand(
+            batch_x_beam, max_index, max_index - 1)
+
+        masked_expanded_combined_log_probs = expanded_combined_log_probs + (
+                    vocab_and_source_token_indices_masks + 1e-45).log()
 
         # shape: [(batch_size, *)]
         modified_log_probs_list: List[torch.Tensor] = []

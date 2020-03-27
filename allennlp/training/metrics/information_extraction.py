@@ -47,12 +47,13 @@ def format_text_field(string):
     # quote " chars
     string = string.replace('"', '\\"')
 
-    for punct in [";", ",", ".", "!", "-"]:
+    for punct in [";", ",", ".", "!"]:
         string = string.replace(" " + punct, punct)
     for bracket in ["(", "["]:
         string = string.replace(bracket + " ", bracket)
     for bracket in ["]", ")"]:
         string = string.replace(" " + bracket, bracket)
+    string = string.replace("- ", "-").replace(" -", "-")
     return '"' + string + '"'
 
 
@@ -180,9 +181,13 @@ def parse_json(pred, recurring_list=[]):
     cleaned_string = " ".join(cleaned_string_lst)
     try:
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
+
+
+
     except Exception as e:
         d = {}
     return d
+
 
 
 def filter_double_recurring(d, recurring_list):
