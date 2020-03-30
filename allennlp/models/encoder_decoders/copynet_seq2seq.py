@@ -820,7 +820,7 @@ class CopyNetSeq2Seq(Model):
         # the copy scores to the generation scores of matching target tokens, and sum
         # the copy scores of duplicate source tokens.
         # shape: (group_size, target_vocab_size + trimmed_source_length)
-        final_log_probs = self._gather_final_log_probs(generation_log_probs, copy_log_probs, state)
+        final_log_probs = self._gather_final_log_probs(state)
 
         return final_log_probs, state
 
