@@ -253,19 +253,17 @@ class InformationExtraction(Metric):
                     json.dump(gt, open(gt_path, "w"), ensure_ascii=False)
                     tmp_pred.append(pred_path)
                     tmp_gt.append(gt_path)
+                try:
+                    out = evaluator.evaluate(tmp_gt, tmp_pred)
+                    if reset:
+                        self.reset()
 
-                out = evaluator.evaluate(tmp_gt, tmp_pred)
+                    return {"f1": out["overall"]["f1"][0], "recall": out["overall"]["recall"][0],
+                            "precision": out["overall"]["precision"][0]}
+                except:
+                    pass
+        if reset:
+            self.reset()
 
-            if reset:
-                self.reset()
-
-            return {"f1": out["overall"]["f1"][0], "recall": out["overall"]["recall"][0],
-                    "precision": out["overall"]["precision"][0]}
-
-
-        else:
-            if reset:
-                self.reset()
-
-            return {"f1": 0, "recall": 0,
-                    "precision": 0}
+        return {"f1": 0, "recall": 0,
+                "precision": 0}
