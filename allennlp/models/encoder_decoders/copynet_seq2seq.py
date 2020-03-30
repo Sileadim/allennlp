@@ -546,6 +546,44 @@ class CopyNetSeq2Seq(Model):
 
         return {"loss": loss}
 
+    def generate_batch_token_indices_and_masks(self, state):
+
+        batch_x_beam, trimmed_source_length = state["source_to_target"].size()
+
+        # +1 for the padding index in the source sequence indices. It's easier this way to generate the padded_source token
+        # indices
+        vocab_size = len(self.vocab.get_index_to_token_vocabulary("target_tokens"))
+
+        max_index = vocab_size + trimmed_source_length
+        # we are going to construct a tensor which indicates all tokens, vocab and source, that are the same by giving
+        # them the same id
+        # batch_x_beam times all the indices from 0 to vocab_size -1
+        vocab_token_indices = torch.arange(vocab_size, device=state["copy_log_probs"].device).expand(batch_x_beam,
+                                                                                                     vocab_size)
+
+        # state["source_to_target"] contains all the copy token which match already target vocabs but not if 2 tokens
+        # are the same if they are not in the vocab. Those tokens and in source_token_ids and we add vocab size unto them
+        padded_source_token_indices = torch.where(state["source_to_target"] > 1, state["source_to_target"],
+                                                  state["source_token_ids"].long() + (
+                                                          (state["source_token_ids"] > 0) * (vocab_size - 1)))
+
+        # we combine vacab and padded source token_indices and expand the last dimension to max_idx so we can later
+        # generate masks that indicate for each index the tokens that are to be added. The second dimension is now
+        # the the max_index dimension
+        # shape: group_size,  max_index, trimmed_source_length,
+        vocab_and_source_token_indices = torch.cat((vocab_token_indices, padded_source_token_indices),
+                                                   dim=-1).unsqueeze(1).expand(
+            batch_x_beam, max_index, max_index)
+
+        # generate 0 to max_index
+        all_indices = torch.arange(max_index, device=state["copy_log_probs"].device)
+
+        # now we generate max_idx mask for each example in the group. The nth mask indicates all tokens have index n
+        vocab_and_source_token_indices_masks = vocab_and_source_token_indices == all_indices.unsqueeze(0).unsqueeze(-1)
+
+        state["vocab_and_source_token_indices_masks"] = vocab_and_source_token_indices_masks
+        state["vocab_and_source_token_indices"] = vocab_and_source_token_indices
+
     def _forward_beam_search(self, state: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         batch_size, source_length = state["source_mask"].size()
         trimmed_source_length = source_length - 2
@@ -560,6 +598,7 @@ class CopyNetSeq2Seq(Model):
 
         state["copy_mask"] = state["source_mask"][:, 2:].float()
 
+        self.generate_batch_token_indices_and_masks(state)
         # shape (all_top_k_predictions): (batch_size, beam_size, num_decoding_steps)
         # shape (log_probabilities): (batch_size, beam_size)
         all_top_k_predictions, log_probabilities = self._beam_search.search(
@@ -654,10 +693,7 @@ class CopyNetSeq2Seq(Model):
 
         return input_choices, selective_weights
 
-    def _gather_final_log_probs(
-            self,
-            generation_log_probs: torch.Tensor,
-            copy_log_probs: torch.Tensor,
+    def _gather_final_log_probs( self, generation_log_probs, copy_log_probs,
             state: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
         """
@@ -665,10 +701,6 @@ class CopyNetSeq2Seq(Model):
 
         # Parameters
 
-        generation_log_probs : `torch.Tensor`
-            Shape: `(group_size, target_vocab_size)`
-        copy_log_probs : `torch.Tensor`
-            Shape: `(group_size, trimmed_source_length)`
         state : `Dict[str, torch.Tensor]`
 
         # Returns
@@ -677,48 +709,49 @@ class CopyNetSeq2Seq(Model):
             Shape: `(group_size, target_vocab_size + trimmed_source_length)`.
         """
         _, trimmed_source_length = state["source_to_target"].size()
-        source_token_ids = state["source_token_ids"]
 
         batch_x_beam = state["log_probs"].shape[0]
-        vocab_size = state["log_probs"].shape[1] - trimmed_source_length
-        # +1 for the padding index in the source sequence indices. It's easier this way to generate the padded_source token
-        # indices
-        max_index = vocab_size + trimmed_source_length + 1
+        max_index = state["log_probs"].shape[1]
+
+        vocab_size = len(self.vocab.get_index_to_token_vocabulary("target_tokens"))
+
 
         # we are going to construct a tensor which indicates all tokens, vocab and source, that are the same by giving
         # them the same id
         # batch_x_beam times all the indices from 0 to vocab_size -1
-        vocab_token_indices = torch.arange(vocab_size, device=state["log_probs"].device).expand(batch_x_beam,
-                                                                                                vocab_size)
+        vocab_token_indices = torch.arange(vocab_size, device=state["copy_log_probs"].device).expand(batch_x_beam,
+                                                                                                     vocab_size)
 
         # state["source_to_target"] contains all the copy token which match already target vocabs but not if 2 tokens
         # are the same if they are not in the vocab. Those tokens and in source_token_ids and we add vocab size unto them
         padded_source_token_indices = torch.where(state["source_to_target"] > 1, state["source_to_target"],
-                                                  state["source_token_ids"].long() + vocab_size)
+                                                  state["source_token_ids"].long() + (
+                                                          (state["source_token_ids"] > 0) * (vocab_size - 1)))
 
-        # we combine vacab and padded source token_indices and expand the last dimension to max_idx so we can later
+        # we combine vocab and padded source token_indices and expand the last dimension to max_idx so we can later
         # generate masks that indicate for each index the tokens that are to be added. The second dimension is now
         # the the max_index dimension
-        # shape: group_size,  max_index,trimmmed_source_length,
+        # shape: group_size,  max_index, trimmed_source_length,
         vocab_and_source_token_indices = torch.cat((vocab_token_indices, padded_source_token_indices),
                                                    dim=-1).unsqueeze(1).expand(
-            batch_x_beam, max_index, max_index - 1)
+            batch_x_beam, max_index, max_index)
 
         # generate 0 to max_index
-        all_indices = torch.arange(max_index, device=state["log_probs"].device)
+        all_indices = torch.arange(max_index, device=state["copy_log_probs"].device)
 
         # now we generate max_idx mask for each example in the group. The nth mask indicates all tokens have index n
         vocab_and_source_token_indices_masks = vocab_and_source_token_indices == all_indices.unsqueeze(0).unsqueeze(-1)
 
-        # zero out pad tokens and if chosen already copied tokens
-        # masked_copy_log_probs = copy_log_probs + (state["copy_mask"] + 1e-45).log()
-        combined_log_probs = torch.cat((generation_log_probs, copy_log_probs), dim=-1)
-
-        expanded_combined_log_probs = combined_log_probs.unsqueeze(1).expand(
-            batch_x_beam, max_index, max_index - 1)
+        # now we generate max_idx mask for each example in the group. The nth mask indicates all tokens have index n
+        expanded_combined_log_probs = state["log_probs"].unsqueeze(1).expand(
+            batch_x_beam, max_index, max_index)
 
         masked_expanded_combined_log_probs = expanded_combined_log_probs + (
-                    vocab_and_source_token_indices_masks + 1e-45).log()
+                vocab_and_source_token_indices_masks + 1e-45).log()
+
+        sum_per_token_id = util.logsumexp(masked_expanded_combined_log_probs, dim=-1)
+
+
 
         # shape: [(batch_size, *)]
         modified_log_probs_list: List[torch.Tensor] = []
@@ -791,6 +824,13 @@ class CopyNetSeq2Seq(Model):
 
         # shape: (group_size, target_vocab_size + trimmed_source_length)
         modified_log_probs = torch.cat(modified_log_probs_list, dim=-1)
+
+
+        old_val, old_indices = torch.topk(modified_log_probs, 2,  dim=-1)
+        new_val, new_indices = torch.topk(sum_per_token_id,2,dim=-1)
+
+        assert torch.equal(old_indices , new_indices)
+        
 
         return modified_log_probs
 
@@ -877,7 +917,7 @@ class CopyNetSeq2Seq(Model):
         # shape: (group_size, target_vocab_size), (group_size, trimmed_source_length)
         generation_log_probs, copy_log_probs = log_probs.split(
             [self._target_vocab_size, trimmed_source_length], dim=-1
-        )
+         )
         # Update copy_probs needed for getting the `selective_weights` at the next timestep.
         state["copy_log_probs"] = copy_log_probs
         state["log_probs"] = log_probs
