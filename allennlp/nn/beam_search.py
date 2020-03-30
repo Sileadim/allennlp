@@ -53,27 +53,14 @@ class BeamSearch:
 
         _, trimmed_source_length = state["source_to_target"].size()
 
-        batch_x_beam = state["log_probs"].shape[0]
         vocab_size = state["log_probs"].shape[1] - trimmed_source_length
 
-        # we are going to construct a tensor which indicates all tokens, vocab and source, that are the same by giving
-        # them the same id
-        # batch_x_beam times all the indices from 0 to vocab_size -1
-        vocab_token_indices = torch.arange(vocab_size, device=state["log_probs"].device).repeat(
-            (batch_x_beam)).view(
-            (batch_x_beam, vocab_size))
+        vocab_and_source_token_indices = state["vocab_and_source_token_indices"]
+        batch_x_beam = vocab_and_source_token_indices.shape[0]
 
-        # state["source_to_target"] contains all the copy token which match already target vocabs but not if 2 tokens
-        # are the same if they are not in the vocab. Those tokens and in source_token_ids and we add vocab size unto them
-
-        padded_source_token_indices = torch.where(state["source_to_target"] > 1, state["source_to_target"],
-                                                  state["source_token_ids"].long() + vocab_size)
-
-        vocab_and_source_token_indices = torch.cat((vocab_token_indices, padded_source_token_indices), dim=-1)
         # get new indices of the selected tokens
         argmax_indices = torch.gather(vocab_and_source_token_indices, 1,
-                                      predicted_token_indices.reshape((batch_x_beam, 1)))
-
+                                      predicted_token_indices.reshape(batch_x_beam, 1))
         # get a mask of all the tokens which are the same as the selected one
         same_idx_as_selected_mask = vocab_and_source_token_indices == argmax_indices
 
@@ -189,6 +176,8 @@ class BeamSearch:
         )
         log_probs_after_end[:, self._end_index] = 0.0
 
+
+
         # Set the same state for each element in the beam.
         for key, state_tensor in state.items():
             _, *last_dims = state_tensor.size()
@@ -200,11 +189,8 @@ class BeamSearch:
             )
 
         if self.restrict_to_single_copy:
-            # we need to create a dummy backpointer so the function works with the later steps
-            # backpointer = torch.arange(self.beam_size, device=start_class_log_probabilities.device).repeat(1,
-            #                                                                                               self.beam_size).view(
-            #    (self.beam_size, self.beam_size))
             self.update_copy_mask(start_predicted_classes, state)
+
 
         for timestep in range(self.max_steps - 1):
             # shape: (batch_size * beam_size,)
