@@ -7,6 +7,7 @@ from spacy.tokens import Doc
 from allennlp.common.util import get_spacy_model
 from allennlp.data.tokenizers.token import Token
 from allennlp.data.tokenizers.tokenizer import Tokenizer
+import re
 
 
 @Tokenizer.register("spacy")
@@ -48,20 +49,24 @@ class SpacyTokenizer(Tokenizer):
     """
 
     def __init__(
-        self,
-        language: str = "en_core_web_sm",
-        pos_tags: bool = False,
-        parse: bool = False,
-        ner: bool = False,
-        idx: bool = False,
-        keep_spacy_tokens: bool = False,
-        split_on_spaces: bool = False,
-        start_tokens: Optional[List[str]] = None,
-        end_tokens: Optional[List[str]] = None,
+            self,
+            language: str = "en_core_web_sm",
+            pos_tags: bool = False,
+            parse: bool = False,
+            ner: bool = False,
+            keep_spacy_tokens: bool = False,
+            split_on_spaces: bool = False,
+            start_tokens: Optional[List[str]] = None,
+            end_tokens: Optional[List[str]] = None,
+            token_match: Optional[str] = None
     ) -> None:
         self.spacy = get_spacy_model(language, pos_tags, parse, ner)
         if split_on_spaces:
             self.spacy.tokenizer = _WhitespaceSpacyTokenizer(self.spacy.vocab)
+        self.token_match = token_match
+        if token_match:
+            matcher = re.compile(token_match).match
+            self.spacy.tokenizer = spacy.Tokenizer(self.spacy.vocab, token_match=matcher)
 
         self._keep_spacy_tokens = keep_spacy_tokens
         self._start_tokens = start_tokens or []
