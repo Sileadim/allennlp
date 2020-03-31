@@ -66,7 +66,7 @@ class SpacyTokenizer(Tokenizer):
         self.token_match = token_match
         if token_match:
             matcher = re.compile(token_match).match
-            self.spacy.tokenizer = spacy.Tokenizer(self.spacy.vocab, token_match=matcher)
+            self.spacy.tokenizer = spacy.tokenizer.Tokenizer(self.spacy.vocab, token_match=matcher)
 
         self._keep_spacy_tokens = keep_spacy_tokens
         self._start_tokens = start_tokens or []
