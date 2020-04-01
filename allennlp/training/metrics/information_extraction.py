@@ -15,7 +15,7 @@ parser = InformationExtractionEvaluator.get_config_parser()
 cfg = parser.parse_args(["--doc_id", "parent-dir"])
 evaluator = InformationExtractionEvaluator(cfg=cfg)
 
-token = re.compile("@@[A-Za-z_{}[\]]+@@")
+token = re.compile("@@[A-Za-z_{}[\]\.]+@@")
 
 
 def get_matches(pred_string):
