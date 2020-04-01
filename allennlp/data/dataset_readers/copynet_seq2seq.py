@@ -146,7 +146,7 @@ class CopyNetDatasetReader(DatasetReader):
         # issues
         for token in tokens:
             # initial implementation is this out.append(ids.setdefault(token.text.lower(), len(ids)))
-            out.append(ids.setdefault(token.text.lower(), len(ids) +1 ))
+            out.append(ids.setdefault(token.text.lower(), len(ids) + 1))
         return out
 
     @overrides

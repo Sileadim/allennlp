@@ -539,10 +539,13 @@ class CopyNetSeq2Seq(Model):
         # shape: (batch_size, num_decoding_steps)
         target_mask = target_mask[:, 1:].float()
         # Sum of step log-likelihoods.
+        masked_log_likelihood = log_likelihoods * target_mask
         # shape: (batch_size,)
         log_likelihood = (log_likelihoods * target_mask).sum(dim=-1)
         # The loss is the negative log-likelihood, averaged over the batch.
         loss = -log_likelihood.sum() / batch_size
+
+        loss_per_example = -log_likelihood.sum(dim=-1)
 
         return {"loss": loss}
 

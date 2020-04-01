@@ -117,12 +117,18 @@ class CoordinateBinTokenIndexer(TokenIndexer):
         self.coordinate_index = coordinate_index
 
     def get_coordinate_bin(self, token):
+        # if the token has a 5th coordinate, that's the page and we just propagate it
         coords = getattr(token, self.feature_name)
+        page = np.zeros(1)
         if coords is None:
             coords = np.zeros(4)
-        bins = coords * self.nbins
-        bins = bins.astype(np.int64)
+        elif len(coords) == 5:
+            page = np.array([coords[4]])
+        bins = coords[0:4] * self.nbins
         bins.clip(0, self.nbins - 1, out=bins)
+        bins = np.concatenate((bins, page))
+        bins = bins.astype(np.int64)
+
         # need to add +1, because 0 is for padding token which get masked out in later stages
         return bins[self.coordinate_index] + 1
 
