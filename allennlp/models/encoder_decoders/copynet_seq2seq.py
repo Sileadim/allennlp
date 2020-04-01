@@ -544,7 +544,6 @@ class CopyNetSeq2Seq(Model):
         # The loss is the negative log-likelihood, averaged over the batch.
         loss = -log_likelihood.sum() / batch_size
 
-
         return {"loss": loss}
 
     def generate_batch_token_indices_and_masks(self, state):
@@ -720,11 +719,10 @@ class CopyNetSeq2Seq(Model):
         expanded_combined_log_probs = state["log_probs"].unsqueeze(1).expand(
             batch_x_beam, max_index, max_index)
         # the mask indicates for each unique all occurrences, vocab or source
-        masked_expanded_combined_log_probs = expanded_combined_log_probs + (
-                state["vocab_and_source_token_indices_masks"] + 1e-45).log()
         # now we sum over the the previously expanded dimension. Each index now contains
         # the correct log prob.
-        sum_per_token_id = util.logsumexp(masked_expanded_combined_log_probs, dim=-1)
+        sum_per_token_id = torch.logsumexp(expanded_combined_log_probs + (
+                state["vocab_and_source_token_indices_masks"] + 1e-45).log(), dim=-1)
 
         return sum_per_token_id
 
