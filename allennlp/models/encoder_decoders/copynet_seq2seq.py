@@ -720,7 +720,8 @@ class CopyNetSeq2Seq(Model):
             batch_x_beam, max_index, max_index)
         # the mask indicates for each unique all occurrences, vocab or source
         # now we sum over the the previously expanded dimension. Each index now contains
-        # the correct log prob.
+        # the correct log prob. TODO: if you have a big vocabulary that can be a really big tensor, think of a
+        # more memory efficient way
         sum_per_token_id = torch.logsumexp(expanded_combined_log_probs + (
                 state["vocab_and_source_token_indices_masks"] + 1e-45).log(), dim=-1)
 
