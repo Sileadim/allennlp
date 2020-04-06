@@ -140,7 +140,7 @@ class CopyNetSeq2Seq(Model):
 
         self._input_projection_layer_input_size = target_embedding_dim + self.encoder_output_dim * 2
         if self.add_source_embeddings_to_decoder:
-            self._input_projection_layer_input_size += self._encoder.get_output_dim()
+            self._input_projection_layer_input_size += self._source_embedder.get_output_dim()
         self._input_projection_layer = Linear(
             self._input_projection_layer_input_size, self.decoder_input_dim)
 
