@@ -137,9 +137,12 @@ class CopyNetSeq2Seq(Model):
         # token from the previous timestep.
         self._target_embedder = Embedding(target_vocab_size, target_embedding_dim)
         self._attention = attention
+
+        self._input_projection_layer_input_size = target_embedding_dim + self.encoder_output_dim * 2
+        if self.add_source_embeddings_to_decoder:
+            self._input_projection_layer_input_size += self._encoder.get_output_dim()
         self._input_projection_layer = Linear(
-            target_embedding_dim + self.encoder_output_dim * 2, self.decoder_input_dim
-        )
+            self._input_projection_layer_input_size, self.decoder_input_dim)
 
         # We then run the projected decoder input through an LSTM cell to produce
         # the next hidden state.
@@ -350,7 +353,7 @@ class CopyNetSeq2Seq(Model):
 
         decoder_input_list = [embedded_input, attentive_read, selective_read]
         if self.add_source_embeddings_to_decoder:
-            selective_embeddings_read = util.weighted_sum(state["embedded_input"], selective_weights)
+            selective_embeddings_read = util.weighted_sum(state["embedded_input"][:, 1:-1], selective_weights)
             decoder_input_list.append(selective_embeddings_read)
         decoder_input = torch.cat(decoder_input_list, -1)
         # shape: (group_size, decoder_input_dim)
