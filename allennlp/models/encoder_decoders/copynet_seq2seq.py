@@ -87,7 +87,8 @@ class CopyNetSeq2Seq(Model):
             tensor_based_metric: Metric = None,
             token_based_metric: Metric = None,
             initializer: InitializerApplicator = InitializerApplicator(),
-            restrict_to_single_copy: bool = False
+            restrict_to_single_copy: bool = False,
+            add_source_embeddings_to_decoder: bool = False
     ) -> None:
         super().__init__(vocab)
         self._source_namespace = source_namespace
@@ -102,6 +103,8 @@ class CopyNetSeq2Seq(Model):
         )
         self._copy_index = self.vocab.add_token_to_namespace(copy_token, self._target_namespace)
         self.restrict_to_single_copy = restrict_to_single_copy
+        self.add_source_embeddings_to_decoder = add_source_embeddings_to_decoder
+
         self._tensor_based_metric = tensor_based_metric \
  \
             # or BLEU(
@@ -120,6 +123,7 @@ class CopyNetSeq2Seq(Model):
         # We arbitrarily set the decoder's input dimension to be the same as the output dimension.
         self.encoder_output_dim = self._encoder.get_output_dim()
         self.decoder_output_dim = self.encoder_output_dim
+
         self.decoder_input_dim = self.decoder_output_dim
 
         target_vocab_size = self.vocab.get_vocab_size(self._target_namespace)
@@ -322,7 +326,7 @@ class CopyNetSeq2Seq(Model):
         source_mask = util.get_text_field_mask(source_tokens)
         # shape: (batch_size, max_input_sequence_length, encoder_output_dim)
         encoder_outputs = self._encoder(embedded_input, source_mask)
-        return {"source_mask": source_mask, "encoder_outputs": encoder_outputs}
+        return {"source_mask": source_mask, "encoder_outputs": encoder_outputs, "embedded_input": embedded_input}
 
     def _decoder_step(
             self,
@@ -343,7 +347,12 @@ class CopyNetSeq2Seq(Model):
         # shape: (group_size, encoder_output_dim)
         selective_read = util.weighted_sum(state["encoder_outputs"][:, 1:-1], selective_weights)
         # shape: (group_size, target_embedding_dim + encoder_output_dim * 2)
-        decoder_input = torch.cat((embedded_input, attentive_read, selective_read), -1)
+
+        decoder_input_list = [embedded_input, attentive_read, selective_read]
+        if self.add_source_embeddings_to_decoder:
+            selective_embeddings_read = util.weighted_sum(state["embedded_input"], selective_weights)
+            decoder_input_list.append(selective_embeddings_read)
+        decoder_input = torch.cat(decoder_input_list, -1)
         # shape: (group_size, decoder_input_dim)
         projected_decoder_input = self._input_projection_layer(decoder_input)
 
@@ -492,6 +501,7 @@ class CopyNetSeq2Seq(Model):
         for timestep in range(num_decoding_steps):
             # shape: (batch_size,)
             input_choices = target_tokens["tokens"]["tokens"][:, timestep]
+            original_input_choices = input_choices
             # If the previous target token was copied, we use the special copy token.
             # But the end target token will always be THE end token, so we know
             # it was not copied.
