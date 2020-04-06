@@ -12,7 +12,7 @@ import tempfile
 
 # need to parse args, no other way to input args
 parser = InformationExtractionEvaluator.get_config_parser()
-cfg = parser.parse_args(["--doc_id", "parent-dir"])
+cfg = parser.parse_args(["--doc_id", "parent-dir", "--exclude_empty"])
 evaluator = InformationExtractionEvaluator(cfg=cfg)
 
 token = re.compile("@@[A-Za-z_{}[\]\.]+@@")
@@ -58,7 +58,6 @@ def format_text_field(string):
 
 
 def parse_json(pred, recurring_list=[]):
-    # TODO: check where $ comes from, looks like line termination symbol
     pred_string = " ".join(pred)
     # first replace null tokens because we don't want to treat them like brackets and keys
     pred_string = pred_string.replace("@@UNKNOWN@@", "").replace("@@null@@", "null")
