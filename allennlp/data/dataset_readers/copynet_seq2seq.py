@@ -218,24 +218,27 @@ def map_tokens_to_coordinates(source_string, coordinate_string, tokens):
     source_words = source_string.split(" ")
     source_coordinates = convert_coordinate_string_to_arrays(coordinate_string)
     assert len(source_words) == len(source_coordinates)
-    char_to_pos_map = []
-    # we assume that all the words in the input are only separated by single spaces and there is no space at
-    # the beginning. Because of last None
-    for source_word, source_coordinate in zip(source_words, source_coordinates):
-        for _ in source_word:
-            char_to_pos_map.append(source_coordinate)
-        # append None coords for spaces
-        char_to_pos_map.append(None)
-    assert len(char_to_pos_map) == len(source_string) + 1
-    for i, token in enumerate(tokens):
-        if token.idx:
+
+    has_idx = hasattr(tokens[0], "idx") and tokens[0].idx
+    if has_idx:
+        char_to_pos_map = []
+        # we assume that all the words in the input are only separated by single spaces and there is no space at
+        # the beginning. Because of last None
+        for source_word, source_coordinate in zip(source_words, source_coordinates):
+            for _ in source_word:
+                char_to_pos_map.append(source_coordinate)
+            # append None coords for spaces
+            char_to_pos_map.append(None)
+        assert len(char_to_pos_map) == len(source_string) + 1
+        for token in enumerate(tokens):
             coordinates = char_to_pos_map[token.idx]
-        else:
-            coordinates = char_to_pos_map[i]
         if coordinates is None:
             raise Exception(
                 "No token idx should ever map to None coordinate. Either implementation or input is wrong.")
         token.coordinates = coordinates
+    else:
+        for token, coordinate in zip(tokens, source_coordinates):
+            token.coordinates = coordinate
 
 
 @DatasetReader.register("copynet_coordinates")
