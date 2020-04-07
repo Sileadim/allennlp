@@ -227,8 +227,11 @@ def map_tokens_to_coordinates(source_string, coordinate_string, tokens):
         # append None coords for spaces
         char_to_pos_map.append(None)
     assert len(char_to_pos_map) == len(source_string) + 1
-    for token in tokens:
-        coordinates = char_to_pos_map[token.idx]
+    for i, token in enumerate(tokens):
+        if token.idx:
+            coordinates = char_to_pos_map[token.idx]
+        else:
+            coordinates = char_to_pos_map[i]
         if coordinates is None:
             raise Exception(
                 "No token idx should ever map to None coordinate. Either implementation or input is wrong.")
