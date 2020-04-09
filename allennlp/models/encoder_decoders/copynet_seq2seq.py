@@ -738,7 +738,16 @@ class CopyNetSeq2Seq(Model):
         sum_per_token_id = torch.logsumexp(expanded_combined_log_probs + (
                 state["vocab_and_source_token_indices_masks"] + 1e-45).log(), dim=-1)
 
-        return sum_per_token_id
+        # We gather the values of each token to have it at the correct place. But now we have the total probability of
+        # a token at each of the token's locations. So we need to zero out all but the first occurrence
+        modified_log_probs_with_duplicates = torch.gather(sum_per_token_id, -1, state['vocab_and_source_token_indices'])
+
+        first_location_mask = ((state["vocab_and_source_token_indices_masks"].cumsum(dim=-1)
+                                * state["vocab_and_source_token_indices_masks"]) == 1).sum(1)
+
+        modified_log_probs = modified_log_probs_with_duplicates + (first_location_mask + 1e-45).log()
+
+        return modified_log_probs
 
     def take_search_step(
             self, last_predictions: torch.Tensor, state: Dict[str, torch.Tensor]
