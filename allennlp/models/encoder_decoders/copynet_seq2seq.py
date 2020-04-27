@@ -88,7 +88,8 @@ class CopyNetSeq2Seq(Model):
             token_based_metric: Metric = None,
             initializer: InitializerApplicator = InitializerApplicator(),
             restrict_to_single_copy: bool = False,
-            add_source_embeddings_to_decoder: bool = False
+            add_source_embeddings_to_decoder: bool = False,
+            norm_loss_by_sequence_length: bool = False,
     ) -> None:
         super().__init__(vocab)
         self._source_namespace = source_namespace
@@ -104,6 +105,8 @@ class CopyNetSeq2Seq(Model):
         self._copy_index = self.vocab.add_token_to_namespace(copy_token, self._target_namespace)
         self.restrict_to_single_copy = restrict_to_single_copy
         self.add_source_embeddings_to_decoder = add_source_embeddings_to_decoder
+
+        self.norm_loss_by_sequence_length = norm_loss_by_sequence_length
 
         self._tensor_based_metric = tensor_based_metric \
  \
@@ -553,7 +556,12 @@ class CopyNetSeq2Seq(Model):
         target_mask = target_mask[:, 1:].float()
         # Sum of step log-likelihoods.
         # shape: (batch_size,)
-        log_likelihood = (log_likelihoods * target_mask).sum(dim=-1)
+
+        if self.norm_loss_by_sequence_length:
+            log_likelihood = ((log_likelihoods * target_mask) / target_mask.sum(dim=-1)).sum(dim=-1)
+        else:
+            log_likelihood = (log_likelihoods * target_mask).sum(dim=-1)
+
         # The loss is the negative log-likelihood, averaged over the batch.
         loss = -log_likelihood.sum() / batch_size
 
