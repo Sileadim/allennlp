@@ -39,7 +39,7 @@ def get_matches(pred_string):
     return span_text_type
 
 
-def format_text_field(string):
+def format_text_field(string, fix_spaces=False):
     string = string.strip(" ")
 
     if string == "null":
@@ -47,17 +47,18 @@ def format_text_field(string):
     # quote " chars
     string = string.replace('"', '\\"')
 
-    for punct in [";", ",", ".", "!"]:
-        string = string.replace(" " + punct, punct)
-    for bracket in ["(", "["]:
-        string = string.replace(bracket + " ", bracket)
-    for bracket in ["]", ")"]:
-        string = string.replace(" " + bracket, bracket)
-    string = string.replace("- ", "-").replace(" -", "-")
+    if fix_spaces:
+        for punct in [";", ",", ".", "!"]:
+            string = string.replace(" " + punct, punct)
+        for bracket in ["(", "["]:
+            string = string.replace(bracket + " ", bracket)
+        for bracket in ["]", ")"]:
+            string = string.replace(" " + bracket, bracket)
+        string = string.replace("- ", "-").replace(" -", "-")
     return '"' + string + '"'
 
 
-def parse_json(pred, recurring_list=[]):
+def parse_json(pred, recurring_list=[], fix_spaces=False):
     pred_string = " ".join(pred)
     # first replace null tokens because we don't want to treat them like brackets and keys
     pred_string = pred_string.replace("@@UNKNOWN@@", "").replace("@@null@@", "null")
@@ -91,6 +92,8 @@ def parse_json(pred, recurring_list=[]):
 
     # we try to produce a proper json by keeping track of brackets
     bracket_stack = []
+    last_curly_idx = 0
+    last_square_idx = 0
 
     def update_stack(i, match):
 
@@ -113,6 +116,7 @@ def parse_json(pred, recurring_list=[]):
                 # this also should not happen, so insert ] before, and pop [ from stack. Then we need to check again
                 # so we call update_stack
                 elif bracket_stack[-1] == "[":
+
                     print("Should not happen: ", bracket_stack, match["text"])
                     print("Trying to fix")
                     _ = bracket_stack.pop()
@@ -158,7 +162,7 @@ def parse_json(pred, recurring_list=[]):
             if match["text"] not in recurring_list:
 
                 if not is_next_open(i):
-                    cleaned_string_lst.append(format_text_field(pred_string[match["end"]:next_start(i)])
+                    cleaned_string_lst.append(format_text_field(pred_string[match["end"]:next_start(i)], fix_spaces)
                                               )
                 # if next is a key, we need to add a comma
                 if is_next_type(i, "key"):
@@ -184,7 +188,6 @@ def parse_json(pred, recurring_list=[]):
     except Exception as e:
         d = {}
     return d
-
 
 
 def filter_double_recurring(d, recurring_list):
