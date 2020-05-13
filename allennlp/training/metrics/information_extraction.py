@@ -98,10 +98,11 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
             # closing curly bracket
             else:
                 # here we we would add a curly closing without any opening so let's skip this
-                #if len(bracket_stack) == 0:
+                if len(bracket_stack) == 0:
+                    pass
                 #    print("Should not happen: ", bracket_stack, match["text"])
                 # if the previous one is a opening one, pop from stack
-                if bracket_stack[-1] == "{":
+                elif bracket_stack[-1] == "{":
                     _ = bracket_stack.pop()
                     cleaned_string_lst.append("}")
                     # we assume if the next one is a curly bracket we add a comma
