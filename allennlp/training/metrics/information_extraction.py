@@ -15,7 +15,7 @@ parser = InformationExtractionEvaluator.get_config_parser()
 cfg = parser.parse_args(["--doc_id", "parent-dir", "--exclude_empty"])
 evaluator = InformationExtractionEvaluator(cfg=cfg)
 
-token = re.compile("@@[A-Za-z_{}[\]\.]+@@")
+token = re.compile("@@[0-9A-Za-z_{}[\]\.,]+@@")
 
 
 def get_matches(pred_string):
@@ -26,8 +26,10 @@ def get_matches(pred_string):
 
     span_text_type = []
     for match in matches:
-        if not any({x in match.group(0) for x in ["{", "}", "]", "["]}):
+        if not any({x in match.group(0) for x in ["{", "}", "]", "[", ","]}):
             type = "key"
+        elif "," in match.group(0):
+            type = "comma"
         else:
             if any({x in match.group(0) for x in ["{", "}"]}):
                 type = "curly"
@@ -89,12 +91,8 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
             return any([x in span_text_type[i + 1]["text"] for x in ["{", "["]])
 
     cleaned_string_lst = []
-
     # we try to produce a proper json by keeping track of brackets
     bracket_stack = []
-    last_curly_idx = 0
-    last_square_idx = 0
-
     def update_stack(i, match):
 
         if match["type"] == "curly":
@@ -104,10 +102,10 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
             # closing curly bracket
             else:
                 # here we we would add a curly closing without any opening so let's skip this
-                if len(bracket_stack) == 0:
-                    print("Should not happen: ", bracket_stack, match["text"])
+                #if len(bracket_stack) == 0:
+                #    print("Should not happen: ", bracket_stack, match["text"])
                 # if the previous one is a opening one, pop from stack
-                elif bracket_stack[-1] == "{":
+                if bracket_stack[-1] == "{":
                     _ = bracket_stack.pop()
                     cleaned_string_lst.append("}")
                     # we assume if the next one is a curly bracket we add a comma
@@ -117,8 +115,8 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
                 # so we call update_stack
                 elif bracket_stack[-1] == "[":
 
-                    print("Should not happen: ", bracket_stack, match["text"])
-                    print("Trying to fix")
+                    #print("Should not happen: ", bracket_stack, match["text"])
+                    #print("Trying to fix")
                     _ = bracket_stack.pop()
                     cleaned_string_lst.append("]")
                     update_stack(i, match)
@@ -126,7 +124,7 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
                 elif bracket_stack[-1] == "]":
                     print("Should not happen: ", bracket_stack, match["text"])
         # square brackets
-        else:
+        elif match["type"] == "square":
             if match["text"] == "[":
                 bracket_stack.append("[")
                 cleaned_string_lst.append("[")
@@ -153,21 +151,26 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
                     print("Should not happen: ", bracket_stack, match["text"])
 
     for i, match in enumerate(span_text_type):
-
         # if it is a key, add the key with '
         if match["type"] == "key":
-
             cleaned_string_lst.append('"' + match["text"] + '":')
             # if it's not a dict or list, add the next string between matches of tokens
             if match["text"] not in recurring_list:
-
                 if not is_next_open(i):
-                    cleaned_string_lst.append(format_text_field(pred_string[match["end"]:next_start(i)], fix_spaces)
+                    cleaned_string_lst.append(format_text_field(pred_string[match["end"]+1:next_start(i)], fix_spaces)
                                               )
                 # if next is a key, we need to add a comma
                 if is_next_type(i, "key"):
                     # add text between tokens
                     cleaned_string_lst.append(",")
+        if match["type"] == "comma":
+            cleaned_string_lst.append(",")
+            if pred_string[match["end"]+1:next_start(i)]:
+                cleaned_string_lst.append(format_text_field(pred_string[match["end"]+1:next_start(i)], fix_spaces))
+
+        elif match["text"] == "[" and not is_next_open(i):
+            update_stack(i, match)
+            cleaned_string_lst.append(format_text_field(pred_string[match["end"]:next_start(i)], fix_spaces))
 
         # if it is not a key, we can ignore the following stuff
         else:
@@ -183,7 +186,6 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
     cleaned_string = " ".join(cleaned_string_lst)
     try:
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
-
 
     except Exception as e:
         d = {}
@@ -205,7 +207,7 @@ def filter_double_recurring(d, recurring_list):
             d[recurring] = new_list
 
 
-@Metric.register("information_extraction")
+# @Metric.register("information_extraction")
 class InformationExtraction(Metric):
     """
         Mleval information extraction as a metric
@@ -272,3 +274,9 @@ class InformationExtraction(Metric):
 
         return {"f1": 0, "recall": 0,
                 "precision": 0}
+
+
+if __name__ == "__main__":
+    import sys
+
+    parse_json(sys.argv[1].split())
