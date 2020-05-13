@@ -1,7 +1,4 @@
-from typing import Optional
-
 from overrides import overrides
-import torch
 import os
 from allennlp.training.metrics.metric import Metric
 import json
@@ -43,7 +40,6 @@ def get_matches(pred_string):
 
 def format_text_field(string, fix_spaces=False):
     string = string.strip(" ")
-
     if string == "null":
         return string
     # quote " chars
@@ -186,7 +182,6 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
     cleaned_string = " ".join(cleaned_string_lst)
     try:
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
-
     except Exception as e:
         d = {}
     return d
@@ -207,7 +202,7 @@ def filter_double_recurring(d, recurring_list):
             d[recurring] = new_list
 
 
-# @Metric.register("information_extraction")
+@Metric.register("information_extraction")
 class InformationExtraction(Metric):
     """
         Mleval information extraction as a metric
