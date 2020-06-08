@@ -106,7 +106,7 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
                     _ = bracket_stack.pop()
                     cleaned_string_lst.append("}")
                     # we assume if the next one is a curly bracket we add a comma
-                    if is_next_text(i, "{"):
+                    if is_next_text(i, "{") or is_next_type(i, "key"):
                         cleaned_string_lst.append(",")
                 # this also should not happen, so insert ] before, and pop [ from stack. Then we need to check again
                 # so we call update_stack
