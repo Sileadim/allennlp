@@ -123,7 +123,11 @@ setup(
         "jsonpickle",
         "semantic_version",
         "dataclasses;python_version<'3.7'",
-        "mlevaluation>=2.24.2"
+        "mlevaluation>=2.24.2",
+        "pandas",
+        "pagexml",
+        "fasttext",
+        "pagexmltools"
     ],
     entry_points={"console_scripts": ["allennlp=allennlp.run:run"]},
     setup_requires=setup_requirements,

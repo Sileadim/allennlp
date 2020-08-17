@@ -30,6 +30,7 @@ RUN apt-get update --fix-missing && apt-get install -y \
     libxrender1 \
     wget \
     libevent-dev \
+    vim \
     build-essential && \
     rm -rf /var/lib/apt/lists/*
 
@@ -38,15 +39,16 @@ RUN apt-get update --fix-missing && apt-get install -y \
 COPY setup.py .
 COPY README.md .
 COPY allennlp/version.py allennlp/version.py
-RUN pip install -e .
+RUN pip install --extra-index-url https://pypi.omnius.com -e .
 COPY dev-requirements.txt .
-RUN pip install -r dev-requirements.txt
+RUN pip install  -r dev-requirements.txt
 
 COPY scripts/ scripts/
 COPY allennlp/ allennlp/
 COPY pytest.ini pytest.ini
 COPY .flake8 .flake8
 COPY tutorials/ tutorials/
+COPY workflow/ workflow/
 COPY training_config training_config/
 COPY setup.py setup.py
 COPY README.md README.md
@@ -76,3 +78,4 @@ LABEL maintainer="allennlp-contact@allenai.org"
 
 EXPOSE 8000
 CMD ["/bin/bash"]
+

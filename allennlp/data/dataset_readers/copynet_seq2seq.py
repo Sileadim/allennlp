@@ -318,3 +318,4 @@ class CopyNetDatasetReaderWithcoordinates(CopyNetDatasetReader):
                 if not source_sequence:
                     continue
                 yield self.text_to_instance(source_sequence, source_coordinates, target_sequence)
+

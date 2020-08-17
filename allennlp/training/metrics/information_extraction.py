@@ -6,10 +6,10 @@ import re
 from collections import OrderedDict
 from mlevaluation.information_extraction import InformationExtractionEvaluator
 import tempfile
-
+import traceback
 # need to parse args, no other way to input args
 parser = InformationExtractionEvaluator.get_config_parser()
-cfg = parser.parse_args(["--doc_id", "parent-dir", "--exclude_empty"])
+cfg = parser.parse_args(["--doc_id", "parent-dir"])
 evaluator = InformationExtractionEvaluator(cfg=cfg)
 
 token = re.compile("@@[0-9A-Za-z_{}[\]\.,]+@@")
@@ -183,7 +183,10 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
     cleaned_string = " ".join(cleaned_string_lst)
     try:
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
+
     except Exception as e:
+        print(pred_string)
+        traceback.print_exc()
         d = {}
     return d
 
