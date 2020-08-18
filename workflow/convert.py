@@ -237,6 +237,7 @@ class STATUS(Enum):
     OK = 6
 
 import pandas as pd
+import json
 def emptyToNone(value):
     #print(value, pd.isnull(value))
     if pd.isnull(value) or value == "":
@@ -247,23 +248,16 @@ def check_gt_and_generate_copynet_file(
     out_dir, ocr_path, df, extract_keys, page_selector="//_:Page", add_page_number=True, tokenizer=None
 ):
 
-    print(ocr_path)
     try:
         pxml = pagexml.PageXML(ocr_path)
         doc_node = pxml.select("//_:PcGts")[0]
         fileName = pxml.getPropertyValue(doc_node, "fileName")
     except Exception as e:
-        print(e)
         return (None, STATUS.CORRUPT_XML)
     if not fileName in list(df["FileName"]):
-        print(fileName)
         return (None, STATUS.NO_GT_IN_CSV)
-
     row_dict = df.loc[df['FileName'] == fileName].to_dict()
-    print( df.loc[df['FileName'] == fileName])
-    new_dict = { key:emptyToNone(list(value.values())[0]) for key, value in row_dict.items() if key in extract_keys }
-    print(new_dict)
-
+    new_dict = {key: emptyToNone(list(value.values())[0]) for key, value in row_dict.items() if key in extract_keys}
     try:
         full_text, full_coords_text = extract_ocr(pxml, page_selector, add_page_number)
     except:
@@ -271,18 +265,19 @@ def check_gt_and_generate_copynet_file(
     try:
         dump = generate_repr(new_dict)
     except Exception as e:
-        print(e)
         return (None, STATUS.DUMP_GENERATION_ERROR)
     try:
         os.makedirs(out_dir, exist_ok=True)
-        with open(os.path.join(out_dir, "copynet.tsv"), "w") as f:
+        json.dump(new_dict, open(os.path.join(out_dir, "gt.json"), "w"), ensure_ascii=False, indent=4)
+        copynet_file = os.path.join(out_dir, "copynet.tsv")
+        with open(copynet_file, "w") as f:
             f.write("\t".join([full_text, full_coords_text, dump]) + "\n")
     except:
         return (None, STATUS.WRITE_ERROR)
     if tokenizer:
         nlp = spacy.load(tokenizer)
         return len(nlp(full_text)), len(nlp(dump))
-    return ((len(full_text.split()), len(dump.split())), STATUS.OK)
+    return ((copynet_file, len(full_text.split()), len(dump.split())), STATUS.OK)
 
 
 if __name__ == "__main__":
