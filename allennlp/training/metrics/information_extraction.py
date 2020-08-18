@@ -185,8 +185,8 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
 
     except Exception as e:
-        print(pred_string)
-        traceback.print_exc()
+        #print(pred_string)
+        #traceback.print_exc()
         d = {}
     return d
 
