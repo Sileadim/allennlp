@@ -238,29 +238,37 @@ class Workflow:
         parser.add_argument("--ocr_name", type=str, default="ocr-page.xml")
         parser.add_argument("--fields", nargs="+", choices=ALL_FIELDS, default=DEFAULT_FIELDS)
         parser.add_argument("--recover", action="store_true")
-        # TODO
+        parser.add_argument("--skip_training", action="store_true")
+        parser.add_argument("--skip_prediction", action="store_true")
         return parser
 
     def __init__(self, cfg):
         self.cfg = cfg
         self.intermediate = "intermediate"
+        self.model_dir = join(self.cfg.output_dir.path, "model")
+        self.copynet_prediction_path = join(
+            self.cfg.output_dir.path, self.intermediate, "test_prediction.txt"
+        )
+        self.report_dir = join(self.cfg.output_dir.path, "report")
 
     def run(self):
 
         self.generate_copynet_files()
         self.update_default_config()
-        success = self.train_model()
-        if not success:
-            return
-        # prediction_path = join(OUTPUT_DIR, INTERMEDIATE, "test_predictions.txt")
-        # success = predict(model_dir, splits["test"]["copynet"], prediction_path)
-        # if not success:
-        #    exit()
-        # print(prediction_path)
-        # predicted_json_paths = convert_prediction_to_jsons(
-        #    prediction_path, join(OUTPUT_DIR, INTERMEDIATE, COLLECTION_ID), splits["test"]["paths"]
-        # )
-        # run_evaluation(predicted_json_paths, join(OUTPUT_DIR, "report"))
+        if not self.cfg.skip_training:
+            success = self.train_model()
+            if not success:
+                return
+        else:
+            logger.info("skipping training")
+        if not self.cfg.skip_prediction:
+            success = self.predict()
+            if not success:
+                return
+        else:
+            logger.info("skipping predictions")
+        self.convert_prediction_to_jsons()
+        self.run_evaluation()
 
     def generate_copynet_files(self):
         max_source_length, max_target_length = 0, 0
@@ -327,10 +335,10 @@ class Workflow:
 
     def train_model(self):
         try:
-            self.model_dir = join(self.cfg.output_dir.path, "model")
-            process = subprocess.Popen(
-                ["allennlp", "train", self.copynet_config, "--serialization-dir", self.model_dir]
-            )
+            args = ["allennlp", "train", self.copynet_config, "--serialization-dir", self.model_dir]
+            if self.cfg.recover:
+                args.append("--recover")
+            process = subprocess.Popen(args)
             code = process.wait()
         except KeyboardInterrupt:
             process.kill()
@@ -342,11 +350,63 @@ class Workflow:
             logger.info("Model training failed.")
         return success
 
+    def predict(self):
+
+        process = subprocess.Popen(
+            [
+                "allennlp",
+                "predict",
+                self.model_dir,
+                self.splits["test"]["copynet"],
+                "--cuda-device",
+                "0",
+                "--use-dataset-reader",
+                "--output-file",
+                self.copynet_prediction_path,
+            ]
+        )
+        code = process.wait()
+        success = code == 0
+        if success:
+            logger.info("Model prediction successfull.")
+        else:
+            logger.info("Model prediction failed.")
+        return success
+
+    def convert_prediction_to_jsons(self):
+
+        predicted_json_paths = []
+        uuids = self.splits["test"]["paths"]
+        with open(self.copynet_prediction_path, "r") as f:
+            preds = f.read().splitlines()
+            assert len(preds) == len(uuids)
+            for pred, uuid in zip(preds, uuids):
+                d = json.loads(pred)
+                predicted_json = parse_json(d["predicted_tokens"][0], [], False)
+                out_path = join(
+                    self.cfg.output_dir.path, self.intermediate, "data", uuid, "pred.json"
+                )
+                json.dump(predicted_json, open(out_path, "w"), ensure_ascii=False, indent=4)
+                predicted_json_paths.append(out_path)
+        logger.info("Converted to proper jsons.")
+        self.predicted_json_paths = predicted_json_paths
+
+    def run_evaluation(self):
+
+        parser = InformationExtractionEvaluator.get_config_parser()
+        cfg = parser.parse_args(["--doc_id", "parent-dir"])
+        evaluator = InformationExtractionEvaluator(cfg=cfg)
+        gt_json_paths = [pred.replace("pred", "gt") for pred in self.predicted_json_paths]
+        evaluator.generate_report(
+            outdir=self.report_dir, gt=gt_json_paths, pr=self.predicted_json_paths
+        )
+        logger.info("Evaluation done")
+
 
 if __name__ == "__main__":
 
     parser = Workflow.get_config_parser()
-    cfg = parser.parse_args(default_env=True)
+    cfg = parser.parse_args(env=True)
     print(cfg)
     workflow = Workflow(cfg=cfg)
     workflow.run()

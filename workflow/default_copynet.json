@@ -103,7 +103,7 @@
       "type": "adam",
       "lr": 0.001
     },
-    "num_epochs": 100,
+    "num_epochs": 20,
     "cuda_device": 0,
     "grad_norm": 0.1,
     "validation_metric": "+f1",
