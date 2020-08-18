@@ -249,10 +249,9 @@ class Workflow:
 
         self.generate_copynet_files()
         self.update_default_config()
-        # model_dir = join(OUTPUT_DIR, MODEL)
-        # success = train_model(cfg_path, model_dir)
-        # if not success:
-        #    exit()
+        success = self.train_model()
+        if not success:
+            return
         # prediction_path = join(OUTPUT_DIR, INTERMEDIATE, "test_predictions.txt")
         # success = predict(model_dir, splits["test"]["copynet"], prediction_path)
         # if not success:
@@ -322,14 +321,32 @@ class Workflow:
         # give 10 percent slack, so that if we copy more for one field the decoding does not stop
         d["model"]["max_decoding_steps"] = math.floor(self.max_target_length * 1.1)
         out_cfg_path = join(self.cfg.output_dir.path, self.intermediate, "config.json")
+        self.copynet_config = out_cfg_path
         json.dump(d, open(out_cfg_path, "w"), ensure_ascii=False, indent=4)
         logger.info(f"dumped copynet config to {out_cfg_path}")
+
+    def train_model(self):
+        try:
+            self.model_dir = join(self.cfg.output_dir.path, "model")
+            process = subprocess.Popen(
+                ["allennlp", "train", self.copynet_config, "--serialization-dir", self.model_dir]
+            )
+            code = process.wait()
+        except KeyboardInterrupt:
+            process.kill()
+            code = 0
+        success = code == 0
+        if success:
+            logger.info("Model training successfull.")
+        else:
+            logger.info("Model training failed.")
+        return success
 
 
 if __name__ == "__main__":
 
     parser = Workflow.get_config_parser()
-    cfg = parser.parse_args()
+    cfg = parser.parse_args(default_env=True)
     print(cfg)
     workflow = Workflow(cfg=cfg)
     workflow.run()
