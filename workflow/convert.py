@@ -11,6 +11,7 @@ from enum import Enum
 import pagexml
 import numpy as np
 
+
 def process_coords(coords):
     """Converts pagexml points object into list of xmin, ymin, xmax, ymax
 
@@ -226,8 +227,6 @@ def generate_learnable_dump(json_path):
     return generate_repr(json_dict)
 
 
-
-
 class STATUS(Enum):
     NO_GT_IN_CSV = 1
     CORRUPT_XML = 2
@@ -235,19 +234,44 @@ class STATUS(Enum):
     DUMP_GENERATION_ERROR = 4
     WRITE_ERROR = 5
     OK = 6
+    LOADED = 7
+    LOADING_ERROR = 7
+
 
 import pandas as pd
 import json
+
+
 def emptyToNone(value):
-    #print(value, pd.isnull(value))
+    # print(value, pd.isnull(value))
     if pd.isnull(value) or value == "":
         return None
     return value
 
+
 def check_gt_and_generate_copynet_file(
-    out_dir, ocr_path, df, extract_keys, page_selector="//_:Page", add_page_number=True, tokenizer=None
+    out_dir,
+    ocr_path,
+    df,
+    extract_keys,
+    page_selector="//_:Page",
+    add_page_number=True,
+    tokenizer=None,
 ):
 
+    gt_json_path = os.path.join(out_dir, "gt.json")
+    copynet_file = os.path.join(out_dir, "copynet.tsv")
+    if os.path.isfile(gt_json_path) and os.path.isfile(copynet_file):
+        try:
+            with open(copynet_file) as f:
+                line = f.read().rstrip("\n")
+            splitted = line.split("\t")
+            return (
+                (copynet_file, len(splitted[0].split()), len(splitted[2].split())),
+                STATUS.LOADED,
+            )
+        except:
+            return (None, STATUS.LOADING_ERROR)
     try:
         pxml = pagexml.PageXML(ocr_path)
         doc_node = pxml.select("//_:PcGts")[0]
@@ -256,8 +280,12 @@ def check_gt_and_generate_copynet_file(
         return (None, STATUS.CORRUPT_XML)
     if not fileName in list(df["FileName"]):
         return (None, STATUS.NO_GT_IN_CSV)
-    row_dict = df.loc[df['FileName'] == fileName].to_dict()
-    new_dict = {key: emptyToNone(list(value.values())[0]) for key, value in row_dict.items() if key in extract_keys}
+    row_dict = df.loc[df["FileName"] == fileName].to_dict()
+    new_dict = {
+        key: emptyToNone(list(value.values())[0])
+        for key, value in row_dict.items()
+        if key in extract_keys
+    }
     try:
         full_text, full_coords_text = extract_ocr(pxml, page_selector, add_page_number)
     except:
@@ -268,8 +296,8 @@ def check_gt_and_generate_copynet_file(
         return (None, STATUS.DUMP_GENERATION_ERROR)
     try:
         os.makedirs(out_dir, exist_ok=True)
-        json.dump(new_dict, open(os.path.join(out_dir, "gt.json"), "w"), ensure_ascii=False, indent=4)
-        copynet_file = os.path.join(out_dir, "copynet.tsv")
+        json.dump(new_dict, open(gt_json_path, "w"), ensure_ascii=False, indent=4)
+
         with open(copynet_file, "w") as f:
             f.write("\t".join([full_text, full_coords_text, dump]) + "\n")
     except:
