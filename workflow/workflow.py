@@ -126,8 +126,6 @@ class Workflow:
             raise ValueError("No experiment name provided")
         self.experiment_dir = join(self.cfg.output_dir.path, self.cfg.experiment_name)
 
-        
-
         if os.path.isdir(self.experiment_dir) and not (
             self.cfg.skip_prediction or self.cfg.skip_training or self.cfg.recover
         ):
@@ -135,7 +133,7 @@ class Workflow:
                 f"Experiment {self.cfg.experiment_name} already exists and no flag indicating the continuing of an already existing experiments is chosen. Aborting"
             )
         else:
-            os.makedirs(self.experiment_dir)
+            os.makedirs(self.experiment_dir, exist_ok=True)
             parser = Workflow.get_config_parser()
             string_repr = parser.dump(self.cfg)
             with open(join(self.experiment_dir, "workflow_config.json"), "w") as f:
@@ -260,7 +258,9 @@ class Workflow:
             args = ["allennlp", "train", self.copynet_config, "--serialization-dir", self.model_dir]
             if self.cfg.recover:
                 args.append("--recover")
-            process = subprocess.Popen(args,stdout=open(self.log_file, "a"), stderr=open(self.log_file, "a"))
+            process = subprocess.Popen(
+                args, stdout=open(self.log_file, "a"), stderr=open(self.log_file, "a")
+            )
             code = process.wait()
         except KeyboardInterrupt:
             process.kill()
@@ -290,7 +290,9 @@ class Workflow:
                 "--use-dataset-reader",
                 "--output-file",
                 self.copynet_prediction_path,
-            ],stdout=open(self.log_file, "a"), stderr=open(self.log_file, "a")
+            ],
+            stdout=open(self.log_file, "a"),
+            stderr=open(self.log_file, "a"),
         )
         code = process.wait()
         success = code == 0
@@ -326,8 +328,6 @@ class Workflow:
             outdir=self.report_dir, gt=gt_json_paths, pr=self.predicted_json_paths
         )
         self.logger.info("Evaluation done")
-
-
 
 
 if __name__ == "__main__":
