@@ -18,7 +18,6 @@ WORKDIR /stage/allennlp
 RUN apt-get upgrade 
 # Install base packages.
 RUN apt-get update --fix-missing && apt-get install -y \
-    python \
     python3 \
     python3-dev \
     bzip2 \
@@ -37,6 +36,8 @@ RUN apt-get update --fix-missing && apt-get install -y \
     build-essential && \
     rm -rf /var/lib/apt/lists/*
 
+
+RUN ln -s /usr/bin/python3 /usr/bin/python
 # Copy select files needed for installing requirements.
 # We only copy what we need here so small changes to the repository does not trigger re-installation of the requirements.
 COPY setup.py .
@@ -45,6 +46,7 @@ COPY allennlp/version.py allennlp/version.py
 RUN pip install --extra-index-url https://pypi.omnius.com -e .
 COPY dev-requirements.txt .
 RUN pip install  -r dev-requirements.txt
+
 
 COPY scripts/ scripts/
 COPY allennlp/ allennlp/
@@ -56,6 +58,7 @@ COPY training_config training_config/
 COPY setup.py setup.py
 COPY README.md README.md
 COPY mkdocs.yml mkdocs.yml
+COPY cache /root/.allennlp/cache/
 RUN pip install --editable .
 
 # Compile EVALB - required for parsing evaluation.

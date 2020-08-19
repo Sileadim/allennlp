@@ -122,7 +122,12 @@ class Workflow:
     def __init__(self, cfg):
 
         self.cfg = cfg
+        if not self.cfg.experiment_name:
+            raise ValueError("No experiment name provided")
         self.experiment_dir = join(self.cfg.output_dir.path, self.cfg.experiment_name)
+
+        
+
         if os.path.isdir(self.experiment_dir) and not (
             self.cfg.skip_prediction or self.cfg.skip_training or self.cfg.recover
         ):
@@ -326,8 +331,8 @@ class Workflow:
 
 
 if __name__ == "__main__":
+
     parser = Workflow.get_config_parser()
     cfg = parser.parse_args(env=True)
-    print(cfg.output_dir)
     workflow = Workflow(cfg=cfg)
     workflow.run()
