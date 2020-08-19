@@ -24,12 +24,6 @@ from allennlp.training.metrics.information_extraction import parse_json
 from mlevaluation.information_extraction import InformationExtractionEvaluator
 import shutil
 
-logger = logging.getLogger("Logger")
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO, stream=sys.stdout
-)
-logger.setLevel(logging.INFO)
-
 
 ALL_FIELDS = [
     "ClaimNumber",
@@ -122,7 +116,7 @@ class Workflow:
         parser.add_argument("--n_jobs", type=int, help="Number of joblib threads.")
         # exposing the 2 most important params
         parser.add_argument("--copynet.batch_size", type=int, help="Batch size", default=1)
-        parser.add_argument("--copynet.epochs", type=int, help="Epochs",default=1)
+        parser.add_argument("--copynet.epochs", type=int, help="Epochs", default=1)
 
         return parser
 
@@ -143,8 +137,19 @@ class Workflow:
             with open(join(self.experiment_dir, "workflow_config.json"), "w") as f:
                 f.write(string_repr + "\n")
 
+        self.logger = logging.getLogger("Logger")
+        formatter = logging.Formatter("%(asctime)s | %(levelname)s : %(message)s")
+        self.logger.setLevel(logging.INFO)
+        self.log_file = join(self.experiment_dir, "log.txt")
+        fh = logging.FileHandler(self.log_file)
+        fh.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        logging.basicConfig(
+            format="%(asctime)s | %(levelname)s : %(message)s",
+            level=logging.INFO,
+            stream=sys.stdout,
+        )
         self.intermediate_dir = join(self.experiment_dir, "intermediate")
-
         if self.cfg.existing_intermediate_dir:
             shutil.copytree(self.cfg.existing_intermediate_dir, self.intermediate_dir)
 
@@ -162,13 +167,13 @@ class Workflow:
             if not success:
                 return
         else:
-            logger.info("skipping training")
+            self.logger.info("skipping training")
         if not self.cfg.skip_prediction:
             success = self.predict()
             if not success:
                 return
         else:
-            logger.info("skipping predictions")
+            self.logger.info("skipping predictions")
         self.convert_prediction_to_jsons()
         self.run_evaluation()
 
@@ -215,12 +220,12 @@ class Workflow:
                             with open(res[0][0]) as g:
                                 line = g.read()
                                 f.write(line)
-                logger.info(
+                self.logger.info(
                     f"{ok_count} extract, {loaded_count} loaded of {len(uuids)} in {split} "
                 )
                 if ok_count == 0 and loaded_count == 0:
                     raise ValueError(f"Empty split {split}")
-        logger.info(
+        self.logger.info(
             f"max_source_length: {max_source_length}, max_target_length {max_target_length}"
         )
 
@@ -242,27 +247,34 @@ class Workflow:
         out_cfg_path = join(self.intermediate_dir, "config.json")
         self.copynet_config = out_cfg_path
         json.dump(d, open(out_cfg_path, "w"), ensure_ascii=False, indent=4)
-        logger.info(f"dumped copynet config to {out_cfg_path}")
+        self.logger.info(f"dumped copynet config to {out_cfg_path}")
 
     def train_model(self):
+        self.logger.info("Starting training, redirecting allennlp output to log file.")
+        was_killed = False
         try:
             args = ["allennlp", "train", self.copynet_config, "--serialization-dir", self.model_dir]
             if self.cfg.recover:
                 args.append("--recover")
-            process = subprocess.Popen(args)
+            process = subprocess.Popen(args,stdout=open(self.log_file, "a"), stderr=open(self.log_file, "a"))
             code = process.wait()
         except KeyboardInterrupt:
             process.kill()
             code = 0
+            was_killed = True
         success = code == 0
         if success:
-            logger.info("Model training successfull.")
+            if was_killed:
+                self.logger.info("Model training was manually terminated.")
+            else:
+                self.logger.info("Model training successfull.")
         else:
-            logger.info("Model training failed.")
+            self.logger.error("Model training failed.")
         return success
 
     def predict(self):
 
+        self.logger.info("Starting prediction, redirecting allennlp output to log file.")
         process = subprocess.Popen(
             [
                 "allennlp",
@@ -274,14 +286,14 @@ class Workflow:
                 "--use-dataset-reader",
                 "--output-file",
                 self.copynet_prediction_path,
-            ]
+            ],stdout=open(self.log_file, "a"), stderr=open(self.log_file, "a")
         )
         code = process.wait()
         success = code == 0
         if success:
-            logger.info("Model prediction successfull.")
+            self.logger.info("Model prediction successfull.")
         else:
-            logger.info("Model prediction failed.")
+            self.logger.error("Model prediction failed.")
         return success
 
     def convert_prediction_to_jsons(self):
@@ -297,7 +309,7 @@ class Workflow:
                 out_path = join(self.data_dir, uuid, "pred.json")
                 json.dump(predicted_json, open(out_path, "w"), ensure_ascii=False, indent=4)
                 predicted_json_paths.append(out_path)
-        logger.info("Converted to proper jsons.")
+        self.logger.info("Converted to proper jsons.")
         self.predicted_json_paths = predicted_json_paths
 
     def run_evaluation(self):
@@ -309,7 +321,7 @@ class Workflow:
         evaluator.generate_report(
             outdir=self.report_dir, gt=gt_json_paths, pr=self.predicted_json_paths
         )
-        logger.info("Evaluation done")
+        self.logger.info("Evaluation done")
 
 
 if __name__ == "__main__":
