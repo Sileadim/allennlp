@@ -120,6 +120,9 @@ class Workflow:
         )
         parser.add_argument("--skip_prediction", action="store_true", help="skip prediction step")
         parser.add_argument("--n_jobs", type=int, help="Number of joblib threads.")
+        # exposing the 2 most important params
+        parser.add_argument("--copynet.batch_size", type=int, help="Batch size", default=1)
+        parser.add_argument("--copynet.epochs", type=int, help="Epochs",default=1)
 
         return parser
 
@@ -179,8 +182,6 @@ class Workflow:
             "test": self.cfg.splits.test.path,
         }
         for split, file in SPLITS.items():
-            print("split path")
-            print(file)
             with open(join(file)) as f:
                 uuids = f.read().splitlines()
                 results = Parallel(n_jobs=self.cfg.n_jobs)(
@@ -232,6 +233,8 @@ class Workflow:
     def update_default_config(self):
 
         d = json.load(open(self.cfg.default_copynet_config.path))
+        d["iterator"]["batch_size"] = self.cfg.copynet.batch_size
+        d["trainer"]["num_epochs"] = self.cfg.copynet.epochs
         d["train_data_path"] = self.splits["train"]["copynet"]
         d["validation_data_path"] = self.splits["val"]["copynet"]
         # give 10 percent slack, so that if we copy more for one field the decoding does not stop
@@ -313,6 +316,5 @@ if __name__ == "__main__":
 
     parser = Workflow.get_config_parser()
     cfg = parser.parse_args(env=True)
-    print(cfg)
     workflow = Workflow(cfg=cfg)
     workflow.run()
