@@ -1,4 +1,4 @@
-FROM python:3.6.10-stretch
+FROM mauvilsa/pagexml:runtime-ubuntu18.04-py36
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
@@ -15,9 +15,12 @@ ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 LABEL com.nvidia.volumes.needed="nvidia_driver"
 
 WORKDIR /stage/allennlp
-
+RUN apt-get upgrade 
 # Install base packages.
 RUN apt-get update --fix-missing && apt-get install -y \
+    python \
+    python3 \
+    python3-dev \
     bzip2 \
     ca-certificates \
     curl \
@@ -53,7 +56,6 @@ COPY training_config training_config/
 COPY setup.py setup.py
 COPY README.md README.md
 COPY mkdocs.yml mkdocs.yml
-
 RUN pip install --editable .
 
 # Compile EVALB - required for parsing evaluation.

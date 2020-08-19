@@ -1,8 +1,7 @@
 # Worflow does the following:
+# Check if experiment already exists
 # Read collection dir and csv
-# Read split files
-# TODO: check if tmp files already exist
-# Create copynet files
+# Read split files and create copynet files
 # Run allennlp with provided config
 # Predict on test set
 # Convert test set to jsons
@@ -65,7 +64,7 @@ class Workflow:
     @staticmethod
     def get_config_parser():
 
-        parser = ArgumentParser()
+        parser = ArgumentParser(env_prefix="APP", default_env=True)
         parser.add_argument("--experiment_name", type=str, help="Name of experiment folder")
         parser.add_argument(
             "--existing_intermediate_dir",
@@ -324,9 +323,11 @@ class Workflow:
         self.logger.info("Evaluation done")
 
 
-if __name__ == "__main__":
 
+
+if __name__ == "__main__":
     parser = Workflow.get_config_parser()
     cfg = parser.parse_args(env=True)
+    print(cfg.output_dir)
     workflow = Workflow(cfg=cfg)
     workflow.run()
