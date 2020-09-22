@@ -199,8 +199,8 @@ class Workflow:
                         join(self.cfg.collection.path, uuid, self.cfg.ocr_name),
                         df,
                         self.cfg.fields,
-                        self.cfg.lowercase,
-                        self.cfg.only_alphanumeric
+                        lowercase=self.cfg.lowercase,
+                        only_alphanumeric=self.cfg.only_alphanumeric
                     )
                     for uuid in uuids
                 )
