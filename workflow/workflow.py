@@ -116,6 +116,8 @@ class Workflow:
         # exposing the 2 most important params
         parser.add_argument("--copynet.batch_size", type=int, help="Batch size", default=1)
         parser.add_argument("--copynet.epochs", type=int, help="Epochs", default=1)
+        parser.add_argument("--only_alphanumeric", action="store_true", help="use only alphanumeric in gt and ocr")
+        parser.add_argument("--lowercase", action="store_true", help="cast gt and ocr to lowercase")
 
         return parser
 
@@ -197,6 +199,8 @@ class Workflow:
                         join(self.cfg.collection.path, uuid, self.cfg.ocr_name),
                         df,
                         self.cfg.fields,
+                        self.cfg.lowercase,
+                        self.cfg.only_alphanumeric
                     )
                     for uuid in uuids
                 )

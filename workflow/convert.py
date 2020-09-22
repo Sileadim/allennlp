@@ -257,6 +257,8 @@ def check_gt_and_generate_copynet_file(
     page_selector="//_:Page",
     add_page_number=True,
     tokenizer=None,
+    lowercase=False,
+    only_alphanumeric = False,
 ):
 
     gt_json_path = os.path.join(out_dir, "gt.json")
@@ -286,17 +288,33 @@ def check_gt_and_generate_copynet_file(
         for key, value in row_dict.items()
         if key in extract_keys
     }
+
+
+    filtered_dict = {}
+    # todo: recursive
+    for key, val in new_dict.items():
+        if lowercase:
+            val = val.lower()
+        if only_alphanumeric:
+            val = filter_nonalphanumeric_characters(val)
+        filtered_dict[key] = val
+    
     try:
         full_text, full_coords_text = extract_ocr(pxml, page_selector, add_page_number)
+        if lowercase:
+            full_text = to_lower(full_text)
+        if only_alphanumeric:
+            full_text, full_coords_text = filter_nonalphanumeric(full_text, full_coords_text)
+
     except:
         return (None, STATUS.EXTRACTION_ERROR)
     try:
-        dump = generate_repr(new_dict)
+        dump = generate_repr(filtered_dict)
     except Exception as e:
         return (None, STATUS.DUMP_GENERATION_ERROR)
     try:
         os.makedirs(out_dir, exist_ok=True)
-        json.dump(new_dict, open(gt_json_path, "w"), ensure_ascii=False, indent=4)
+        json.dump(filtered_dict, open(gt_json_path, "w"), ensure_ascii=False, indent=4)
 
         with open(copynet_file, "w") as f:
             f.write("\t".join([full_text, full_coords_text, dump]) + "\n")
@@ -306,6 +324,27 @@ def check_gt_and_generate_copynet_file(
         nlp = spacy.load(tokenizer)
         return len(nlp(full_text)), len(nlp(dump))
     return ((copynet_file, len(full_text.split()), len(dump.split())), STATUS.OK)
+
+
+
+def to_lower(words):
+    return [w.lower() for w in words]
+
+def filter_nonalphanumeric(words, coords):
+
+    filtered_words, filtered_coords = [],[]
+    for w,c in words, coords:
+        fw = filter_nonalphanumeric_characters(w)
+        if fw:
+            filtered_words.append(fw)
+            filtered_coords.append(c)
+
+    return filtered_words, filtered_coords
+
+
+def filter_nonalphanumeric_characters(word):
+
+    return "".join([ c for c in word if c.isalpha() or c.isalnum() ])
 
 
 if __name__ == "__main__":
