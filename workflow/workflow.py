@@ -118,6 +118,7 @@ class Workflow:
         parser.add_argument("--copynet.epochs", type=int, help="Epochs", default=1)
         parser.add_argument("--only_alphanumeric", action="store_true", help="use only alphanumeric in gt and ocr")
         parser.add_argument("--lowercase", action="store_true", help="cast gt and ocr to lowercase")
+        parser.add_argument("--max_token_length", action="store_true", help="cast gt and ocr to lowercase")
 
         return parser
 
@@ -206,6 +207,7 @@ class Workflow:
                 )
                 ok_count = 0
                 loaded_count = 0
+                too_long = 0
                 split_file = join(self.intermediate_dir, split + ".txt")
                 splits[split] = {}
                 splits[split]["copynet"] = split_file
@@ -213,21 +215,25 @@ class Workflow:
                 with open(split_file, "w") as f:
                     for res in results:
                         if res[1] in [STATUS.OK, STATUS.LOADED]:
-                            if res[1] == STATUS.OK:
-                                ok_count += 1
+                            if not self.cfg.max_token_length or res[0][1] <= self.cfg.max_token_length:
+                                if res[1] == STATUS.OK:
+                                    ok_count += 1
+                                else:
+                                    loaded_count += 1
+
+                                max_source_length = max(max_source_length, res[0][1])
+                                max_target_length = max(max_target_length, res[0][2])
+                                # get uuid back
+                                splits[split]["paths"].append(
+                                    os.path.basename(os.path.dirname(res[0][0]))
+                                )
+                                with open(res[0][0]) as g:
+                                    line = g.read()
+                                    f.write(line)
                             else:
-                                loaded_count += 1
-                            max_source_length = max(max_source_length, res[0][1])
-                            max_target_length = max(max_target_length, res[0][2])
-                            # get uuid back
-                            splits[split]["paths"].append(
-                                os.path.basename(os.path.dirname(res[0][0]))
-                            )
-                            with open(res[0][0]) as g:
-                                line = g.read()
-                                f.write(line)
+                                too_long += 1
                 self.logger.info(
-                    f"{ok_count} extract, {loaded_count} loaded of {len(uuids)} in {split} "
+                    f"{ok_count} extract, {too_long} too_long, {loaded_count} loaded of {len(uuids)} in {split} "
                 )
                 if ok_count == 0 and loaded_count == 0:
                     raise ValueError(f"Empty split {split}")
@@ -314,8 +320,9 @@ class Workflow:
             preds = f.read().splitlines()
             assert len(preds) == len(uuids)
             for pred, uuid in zip(preds, uuids):
-                d = json.loads(pred)
-                predicted_json = parse_json(d["predicted_tokens"][0], [], False)
+                prediction_dict = json.loads(pred)
+                predicted_json = parse_json(prediction_dict["predicted_tokens"][0], [], False)
+                import pdb; pdb.set_trace()
                 out_path = join(self.data_dir, uuid, "pred.json")
                 json.dump(predicted_json, open(out_path, "w"), ensure_ascii=False, indent=4)
                 predicted_json_paths.append(out_path)

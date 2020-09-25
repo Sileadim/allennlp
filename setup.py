@@ -113,7 +113,7 @@ setup(
         "requests>=2.18",
         "tqdm>=4.19",
         "h5py",
-        "scikit-learn",
+        "scikit-learn==0.22.1",
         "scipy",
         "pytest",
         "flaky",
@@ -123,11 +123,11 @@ setup(
         "jsonpickle",
         "semantic_version",
         "dataclasses;python_version<'3.7'",
-        "mlevaluation>=2.24.2",
+        "mlevaluation==2.24.2",
         "pandas",
-        "pagexml",
+        "pagexml==2019.10.10",
         "fasttext",
-        "pagexmltools"
+        "pagexmltools==3.33.0"
     ],
     entry_points={"console_scripts": ["allennlp=allennlp.run:run"]},
     setup_requires=setup_requirements,
