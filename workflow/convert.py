@@ -269,7 +269,7 @@ def check_gt_and_generate_copynet_file(
                 line = f.read().rstrip("\n")
             splitted = line.split("\t")
             return (
-                (copynet_file, len(splitted[0].split()), len(splitted[2].split())),
+                (copynet_file, splitted[0].split(), splitted[2].split()),
                 STATUS.LOADED,
             )
         except:
@@ -316,15 +316,11 @@ def check_gt_and_generate_copynet_file(
     try:
         os.makedirs(out_dir, exist_ok=True)
         json.dump(filtered_dict, open(gt_json_path, "w"), ensure_ascii=False, indent=4)
-
         with open(copynet_file, "w") as f:
             f.write("\t".join([full_text, full_coords_text, dump]) + "\n")
     except:
         return (None, STATUS.WRITE_ERROR)
-    if tokenizer:
-        nlp = spacy.load(tokenizer)
-        return len(nlp(full_text)), len(nlp(dump))
-    return ((copynet_file, len(full_text.split()), len(dump.split())), STATUS.OK)
+    return ((copynet_file, full_text.split(), dump.split() ), STATUS.OK)
 
 
 def filter_nonalphanumeric(words, coords):
@@ -368,7 +364,7 @@ if __name__ == "__main__":
     parser.add_argument("--tokenizer", type=str, default=None)
 
     args = parser.parse_args()
-    print(args)
+
     generate_dataset(
         args.path_to_dataset,
         args.path_to_uuid_root,

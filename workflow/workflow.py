@@ -22,7 +22,7 @@ import subprocess
 from allennlp.training.metrics.information_extraction import parse_json
 from mlevaluation.information_extraction import InformationExtractionEvaluator
 import shutil
-
+import fasttext
 
 ALL_FIELDS = [
     "ClaimNumber",
@@ -97,6 +97,12 @@ class Workflow:
             default=Path("default_copynet.json"),
             help="path to copynet default config",
         )
+        parser.add_argument(
+            "--fasttext_copynet_config",
+            action=ActionPath(mode="fr"),
+            default=Path("fasttext_copynet.json"),
+            help="path to copynet fasttext config",
+        )
         parser.add_argument("--ocr_name", type=str, default="ocr-page.xml", help="ocr xml name")
         parser.add_argument(
             "--fields",
@@ -116,9 +122,14 @@ class Workflow:
         # exposing the 2 most important params
         parser.add_argument("--copynet.batch_size", type=int, help="Batch size", default=1)
         parser.add_argument("--copynet.epochs", type=int, help="Epochs", default=1)
-        parser.add_argument("--only_alphanumeric", action="store_true", help="use only alphanumeric in gt and ocr")
+        parser.add_argument(
+            "--only_alphanumeric", action="store_true", help="use only alphanumeric in gt and ocr"
+        )
         parser.add_argument("--lowercase", action="store_true", help="cast gt and ocr to lowercase")
-        parser.add_argument("--max_token_length", action="store_true", help="cast gt and ocr to lowercase")
+        parser.add_argument(
+            "--max_token_length", type=int, default=None, help="Maximum length of target tokens."
+        )
+        parser.add_argument("--fasttext", action="store_true", help="Add fasttext embeddings.")
 
         return parser
 
@@ -183,9 +194,20 @@ class Workflow:
         self.run_evaluation()
 
     def generate_copynet_files(self):
+        df = pd.read_csv(self.cfg.csv.path, dtype=str)
+        splits, max_source_length, max_target_length = self.generate_splits(df)
+        self.logger.info(
+            f"max_source_length: {max_source_length}, max_target_length {max_target_length}"
+        )
+        self.splits, self.max_source_length, self.max_target_length = (
+            splits,
+            max_source_length,
+            max_target_length,
+        )
+
+    def generate_splits(self, df):
         max_source_length, max_target_length = 0, 0
         splits = {}
-        df = pd.read_csv(self.cfg.csv.path, dtype=str)
         SPLITS = {
             "train": self.cfg.splits.train.path,
             "val": self.cfg.splits.val.path,
@@ -201,7 +223,7 @@ class Workflow:
                         df,
                         self.cfg.fields,
                         lowercase=self.cfg.lowercase,
-                        only_alphanumeric=self.cfg.only_alphanumeric
+                        only_alphanumeric=self.cfg.only_alphanumeric,
                     )
                     for uuid in uuids
                 )
@@ -212,17 +234,27 @@ class Workflow:
                 splits[split] = {}
                 splits[split]["copynet"] = split_file
                 splits[split]["paths"] = []
+
                 with open(split_file, "w") as f:
                     for res in results:
                         if res[1] in [STATUS.OK, STATUS.LOADED]:
-                            if not self.cfg.max_token_length or res[0][1] <= self.cfg.max_token_length:
+                            if (
+                                not self.cfg.max_token_length
+                                or res[0][1] <= self.cfg.max_token_length
+                            ):
                                 if res[1] == STATUS.OK:
                                     ok_count += 1
                                 else:
                                     loaded_count += 1
+                                max_source_length = max(max_source_length, len(res[0][1]))
+                                max_target_length = max(max_target_length, len(res[0][2]))
+                                if self.cfg.fasttext and split == "train":
+                                    self.fasttext_file = join(
+                                        self.intermediate_dir, "fasttext" + ".txt"
+                                    )
+                                    with open(self.fasttext_file, "a") as g:
+                                        g.write(" ".join(res[0][1]) + "\n")
 
-                                max_source_length = max(max_source_length, res[0][1])
-                                max_target_length = max(max_target_length, res[0][2])
                                 # get uuid back
                                 splits[split]["paths"].append(
                                     os.path.basename(os.path.dirname(res[0][0]))
@@ -237,19 +269,18 @@ class Workflow:
                 )
                 if ok_count == 0 and loaded_count == 0:
                     raise ValueError(f"Empty split {split}")
-        self.logger.info(
-            f"max_source_length: {max_source_length}, max_target_length {max_target_length}"
-        )
-
-        self.splits, self.max_source_length, self.max_target_length = (
-            splits,
-            max_source_length,
-            max_target_length,
-        )
+        return splits, max_source_length, max_target_length
 
     def update_default_config(self):
 
-        d = json.load(open(self.cfg.default_copynet_config.path))
+        if self.cfg.fasttext:
+            d = json.load(open(self.cfg.fasttext_copynet_config.path))
+            self.fasttext_model_path = os.path.abspath(
+                os.path.join(self.intermediate_dir, "fasttext.bin")
+            )
+            d["dataset_reader"]["source_token_indexers"]["token_fasttext"]["model_path"] = self.fasttext_model_path
+        else:
+            d = json.load(open(self.cfg.default_copynet_config.path))
         d["iterator"]["batch_size"] = self.cfg.copynet.batch_size
         d["trainer"]["num_epochs"] = self.cfg.copynet.epochs
         d["train_data_path"] = self.splits["train"]["copynet"]
@@ -262,7 +293,11 @@ class Workflow:
         self.logger.info(f"dumped copynet config to {out_cfg_path}")
 
     def train_model(self):
+
         self.logger.info("Starting training, redirecting allennlp output to log file.")
+
+        if self.cfg.fasttext:
+            self.train_fasttext()
         was_killed = False
         try:
             args = ["allennlp", "train", self.copynet_config, "--serialization-dir", self.model_dir]
@@ -286,6 +321,16 @@ class Workflow:
             self.logger.error("Model training failed.")
         return success
 
+    def train_fasttext(self):
+
+        if not os.path.exists(self.fasttext_model_path):
+            self.logger.info("Training fasttext")
+            fasttext_model = fasttext.train_unsupervised(
+                self.fasttext_file, epoch=100, dim=128, minCount=1,
+            )
+            fasttext_model.save_model(self.fasttext_model_path)
+        else:
+            self.logger.info("Loading fasttext")
     def predict(self):
 
         self.logger.info("Starting prediction, redirecting allennlp output to log file.")
@@ -322,7 +367,6 @@ class Workflow:
             for pred, uuid in zip(preds, uuids):
                 prediction_dict = json.loads(pred)
                 predicted_json = parse_json(prediction_dict["predicted_tokens"][0], [], False)
-                import pdb; pdb.set_trace()
                 out_path = join(self.data_dir, uuid, "pred.json")
                 json.dump(predicted_json, open(out_path, "w"), ensure_ascii=False, indent=4)
                 predicted_json_paths.append(out_path)
