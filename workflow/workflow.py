@@ -240,7 +240,7 @@ class Workflow:
                         if res[1] in [STATUS.OK, STATUS.LOADED]:
                             if (
                                 not self.cfg.max_token_length
-                                or res[0][1] <= self.cfg.max_token_length
+                                or len(res[0][1]) <= self.cfg.max_token_length
                             ):
                                 if res[1] == STATUS.OK:
                                     ok_count += 1
