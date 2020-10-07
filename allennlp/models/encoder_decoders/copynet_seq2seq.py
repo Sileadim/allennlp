@@ -206,6 +206,7 @@ class CopyNetSeq2Seq(Model):
 
         Dict[str, torch.Tensor]
         """
+        
         state = self._encode(source_tokens)
         state["source_token_ids"] = source_token_ids
         state["source_to_target"] = source_to_target

@@ -28,10 +28,17 @@ class NamespaceSwappingField(Field[torch.Tensor]):
         self._target_namespace = target_namespace
         self._mapping_array: List[int] = None
 
+
+    def _get_token_index_with_claim_number_hack(self, vocab, x):
+
+
+        return vocab.get_token_index(x.text, self._target_namespace)
+
     @overrides
     def index(self, vocab: Vocabulary):
+
         self._mapping_array = [
-            vocab.get_token_index(x.text, self._target_namespace) for x in self._source_tokens
+            self._get_token_index_with_claim_number_hack(vocab, x) for x in self._source_tokens
         ]
 
     @overrides

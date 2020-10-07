@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 START_POSITION = np.array([0.0, 0.0, 0.0, 0.0])
 END_POSITION = np.array([1.0, 1.0, 1.0, 1.0])
 
+def only_numeric(string):
+    for c in string:
+        if c.isalpha():
+            return False
+    return True
 
 @DatasetReader.register("copynet_seq2seq")
 class CopyNetDatasetReader(DatasetReader):
@@ -138,15 +143,25 @@ class CopyNetDatasetReader(DatasetReader):
                     continue
                 yield self.text_to_instance(source_sequence, target_sequence)
 
+
+
     @staticmethod
     def _tokens_to_ids(tokens: List[Token]) -> List[int]:
         ids: Dict[str, int] = {}
         out: List[int] = []
-        # TODO: Change this to len(ids) + 1;  padding token gets the same id as the first one otherwise, which might lead to
-        # issues
         for token in tokens:
-            # initial implementation is this out.append(ids.setdefault(token.text.lower(), len(ids)))
-            out.append(ids.setdefault(token.text.lower(), len(ids) + 1))
+            text = token.text.lower()
+            if only_numeric(text) and len(text) > 5:
+                if text in ids.keys():
+                    out.append(ids[text])
+                elif text[:-1] in ids.keys():
+                    out.append(ids[text[:-1]])
+                else:
+                    ids[text] = len(ids) + 1
+                    out.append( len(ids) + 1)
+            else:
+                # initial implementation is this out.append(ids.setdefault(token.text.lower(), len(ids)))
+                out.append(ids.setdefault(text, len(ids) + 1))
         return out
 
     @overrides
@@ -190,7 +205,7 @@ class CopyNetDatasetReader(DatasetReader):
             fields_dict["target_tokens"] = target_field
             meta_fields["target_tokens"] = [y.text for y in tokenized_target[1:-1]]
             source_and_target_token_ids = self._tokens_to_ids(
-                tokenized_source[1:-1] + tokenized_target
+               tokenized_target +  tokenized_source[1:-1]
             )
             source_token_ids = source_and_target_token_ids[: len(tokenized_source) - 2]
             fields_dict["source_token_ids"] = ArrayField(np.array(source_token_ids))
@@ -287,7 +302,7 @@ class CopyNetDatasetReaderWithcoordinates(CopyNetDatasetReader):
             fields_dict["target_tokens"] = target_field
             meta_fields["target_tokens"] = [y.text for y in tokenized_target[1:-1]]
             source_and_target_token_ids = self._tokens_to_ids(
-                tokenized_source[1:-1] + tokenized_target
+                tokenized_source[1:-1] + tokenized_target 
             )
             source_token_ids = source_and_target_token_ids[: len(tokenized_source) - 2]
             fields_dict["source_token_ids"] = ArrayField(np.array(source_token_ids))
