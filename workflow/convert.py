@@ -298,7 +298,7 @@ def check_gt_and_generate_copynet_file(
         if val:
             if lowercase:
                 val = val.lower()
-            if key == "LossDate" and split_dates:
+            if key in ["LossDate","DOB"] and split_dates:
                 val = split_gt_dates(val)
             if only_alphanumeric:
                 val = filter_nonalphanumeric_characters(val)
