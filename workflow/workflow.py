@@ -130,6 +130,7 @@ class Workflow:
             "--max_token_length", type=int, default=None, help="Maximum length of target tokens."
         )
         parser.add_argument("--fasttext", action="store_true", help="Add fasttext embeddings.")
+        parser.add_argument("--split_dates", action="store_true", help="Spit dates.")
 
         return parser
 
@@ -223,7 +224,8 @@ class Workflow:
                         df,
                         self.cfg.fields,
                         lowercase=self.cfg.lowercase,
-                        only_alphanumeric=self.cfg.only_alphanumeric,
+                        only_alphanumeric = self.cfg.only_alphanumeric,
+                        split_dates = self.cfg.split_dates
                     )
                     for uuid in uuids
                 )

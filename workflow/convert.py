@@ -10,6 +10,10 @@ from collections import OrderedDict
 from enum import Enum
 import pagexml
 import numpy as np
+import re
+
+
+DATE_REGEX = re.compile("[0-9]{1,4}[/\.,\\-]{1}[0-9]{1,2}[/\.,\\-]{1}[0-9]{1,4}")
 
 
 def process_coords(coords):
@@ -243,7 +247,6 @@ import json
 
 
 def emptyToNone(value):
-    # print(value, pd.isnull(value))
     if pd.isnull(value) or value == "":
         return None
     return value
@@ -258,7 +261,8 @@ def check_gt_and_generate_copynet_file(
     add_page_number=True,
     tokenizer=None,
     lowercase=False,
-    only_alphanumeric = False,
+    only_alphanumeric=False,
+    split_dates=True,
 ):
 
     gt_json_path = os.path.join(out_dir, "gt.json")
@@ -294,15 +298,19 @@ def check_gt_and_generate_copynet_file(
         if val:
             if lowercase:
                 val = val.lower()
+            if key == "LossDate" and split_dates:
+                val = split_gt_dates(val)
             if only_alphanumeric:
                 val = filter_nonalphanumeric_characters(val)
         filtered_dict[key] = val
     try:
         full_text, full_coords_text = extract_ocr(pxml, page_selector, add_page_number)
-        #import pdb; pdb.set_trace()
-        #print(full_text, full_coords_text)
+        # import pdb; pdb.set_trace()
+        # print(full_text, full_coords_text)
         if lowercase:
             full_text = full_text.lower()
+        if split_dates:
+            full_text, full_coords_text = split_date_strings(full_text, full_coords_text)
         if only_alphanumeric:
             full_text, full_coords_text = filter_nonalphanumeric(full_text, full_coords_text)
 
@@ -320,14 +328,14 @@ def check_gt_and_generate_copynet_file(
             f.write("\t".join([full_text, full_coords_text, dump]) + "\n")
     except:
         return (None, STATUS.WRITE_ERROR)
-    return ((copynet_file, full_text.split(), dump.split() ), STATUS.OK)
+    return ((copynet_file, full_text.split(), dump.split()), STATUS.OK)
 
 
-def filter_nonalphanumeric(words, coords):
+def filter_nonalphanumeric(words, coords, filter_at=False):
 
-    filtered_words, filtered_coords = [],[]
-    for w,c in zip(words.split(), coords.split()):
-        fw = filter_nonalphanumeric_characters(w)
+    filtered_words, filtered_coords = [], []
+    for w, c in zip(words.split(), coords.split()):
+        fw = filter_nonalphanumeric_characters(w, filter_at=filter_at)
         if fw:
             filtered_words.append(fw)
             filtered_coords.append(c)
@@ -335,9 +343,40 @@ def filter_nonalphanumeric(words, coords):
     return " ".join(filtered_words), " ".join(filtered_coords)
 
 
-def filter_nonalphanumeric_characters(word):
+def filter_nonalphanumeric_characters(word, filter_at=False):
+    def at_ok(c):
+        if c == "@":
+            return False if filter_at else True
+        return False
 
-    return "".join([ c for c in word if  c.isalnum() ])
+    return "".join([c for c in word if c.isalnum() or c == " " or at_ok(c)])
+
+
+def split_date_strings(full_text, full_coords_text):
+
+    splitted_words, splitted_coords = [], []
+    for w, c in zip(full_text.split(), full_coords_text.split()):
+        if DATE_REGEX.match(w):
+            for sep in "/.,\\-":
+                if sep in w:
+                    splitted = w.split(sep)
+                    for s in splitted:
+                        splitted_words.append(s)
+                        splitted_coords.append(c)
+                    break
+
+        else:
+            splitted_words.append(w)
+            splitted_coords.append(c)
+
+    assert len(splitted_words) == len(splitted_coords)
+    return " ".join(splitted_words), " ".join(splitted_coords)
+
+
+def split_gt_dates(date_string):
+
+    splitted = date_string.split("-")
+    return " ".join(["@" + splitted[1] + "@", splitted[2], splitted[0]])
 
 
 if __name__ == "__main__":
