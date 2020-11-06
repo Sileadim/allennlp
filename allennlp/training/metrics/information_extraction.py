@@ -61,8 +61,6 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
     # first replace null tokens because we don't want to treat them like brackets and keys
     pred_string = pred_string.replace("@@UNKNOWN@@", "").replace("@@null@@", "null")
     span_text_type = get_matches(pred_string)
-    print(pred_string)
-    #import pdb; pdb.set_trace()
     def next_start(i):
         if (i + 1) == len(span_text_type):
             return i + 1
@@ -182,7 +180,6 @@ def parse_json(pred, recurring_list=[], fix_spaces=False):
             cleaned_string_lst.append("]")
 
     cleaned_string = " ".join(cleaned_string_lst)
-    print(cleaned_string)
     try:
         d = json.loads(cleaned_string, object_pairs_hook=OrderedDict)
     except Exception as e:
@@ -205,6 +202,8 @@ def filter_double_recurring(d, recurring_list):
                     new_list.append(r)
 
             d[recurring] = new_list
+
+
 
 
 @Metric.register("information_extraction")
@@ -264,10 +263,10 @@ class InformationExtraction(Metric):
                     out = evaluator.evaluate(tmp_gt, tmp_pred)
                     if reset:
                         self.reset()
-
-                    return {"f1": out["overall"]["f1"][0], "recall": out["overall"]["recall"][0],
-                            "precision": out["overall"]["precision"][0]}
-                except:
+                    return {"f1": out["overall"]["F1"][0], "recall": out["overall"]["R"][0],
+                            "precision": out["overall"]["P"][0]}
+                except Exception as e:
+                    raise e
                     pass
         if reset:
             self.reset()

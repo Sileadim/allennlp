@@ -123,7 +123,7 @@ setup(
         "jsonpickle",
         "semantic_version",
         "dataclasses;python_version<'3.7'",
-        "mlevaluation==2.24.2",
+        "mlevaluation==3.3.0",
         "pandas",
         "pagexml==2019.10.10",
         "fasttext",
